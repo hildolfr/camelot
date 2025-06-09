@@ -1,5 +1,19 @@
 /* Additional styles for Camelot Poker Calculator */
 
+/* Suit separators in card grid */
+.card:nth-child(13)::after,
+.card:nth-child(26)::after,
+.card:nth-child(39)::after {
+    content: '';
+    position: absolute;
+    right: -0.6rem;
+    top: -10%;
+    height: 120%;
+    width: 2px;
+    background: rgba(255, 255, 255, 0.2);
+    pointer-events: none;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
     width: 8px;

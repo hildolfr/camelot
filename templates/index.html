@@ -75,15 +75,16 @@
         }
         
         .results-panel {
-            width: 0;
+            width: 400px;
+            transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
             opacity: 0;
-            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateX(100%);
             overflow: hidden;
         }
         
         .results-panel.active {
-            width: 400px;
             opacity: 1;
+            transform: translateX(0);
         }
         
         @media (max-width: 1024px) {
@@ -91,8 +92,17 @@
                 flex-direction: column;
             }
             
-            .results-panel.active {
+            .results-panel {
                 width: 100%;
+                transform: translateY(50px);
+                opacity: 0;
+                display: none;
+            }
+            
+            .results-panel.active {
+                display: block;
+                transform: translateY(0);
+                opacity: 1;
             }
         }
         

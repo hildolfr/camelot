@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // Create animated background particles
 function createParticles() {
     const particlesContainer = document.getElementById('particles');
-    const particleCount = 15;
+    const particleCount = 30; // Doubled particle density
     
     for (let i = 0; i < particleCount; i++) {
         const particle = document.createElement('div');
@@ -57,7 +57,8 @@ function generateCardGrid() {
     const grid = document.getElementById('cardGrid');
     grid.innerHTML = '';
     
-    // Generate cards for each suit and rank
+    // Generate cards sorted by suit (all spades, then hearts, then diamonds, then clubs)
+    // Within each suit, cards are already in rank order (A, K, Q, J, 10, 9, 8, 7, 6, 5, 4, 3, 2)
     SUITS.forEach(suit => {
         RANKS.forEach(rank => {
             const cardId = `${rank}${suit.symbol}`;
@@ -176,19 +177,8 @@ function setupEventListeners() {
 
 // Handle responsive layout
 function handleResize() {
-    const isLandscape = window.innerWidth > 1024;
-    const resultsPanel = document.getElementById('resultsPanel');
-    const mobileResults = document.getElementById('mobileResults');
-    
-    if (isLandscape && mobileResults.style.display !== 'none') {
-        // Move results to side panel
-        resultsPanel.classList.add('active');
-        mobileResults.style.display = 'none';
-    } else if (!isLandscape && resultsPanel.classList.contains('active')) {
-        // Move results to bottom
-        resultsPanel.classList.remove('active');
-        mobileResults.style.display = 'block';
-    }
+    // Layout is now handled by CSS media queries
+    // This function kept for potential future use
 }
 
 // Update UI state
@@ -290,10 +280,14 @@ function displayResults(data) {
         // Show side panel
         document.getElementById('resultsPanel').classList.add('active');
         updateResultsDisplay('', data);
+        // Hide mobile results if they were visible
+        document.getElementById('mobileResults').style.display = 'none';
     } else {
         // Show mobile results
         document.getElementById('mobileResults').style.display = 'block';
         updateResultsDisplay('Mobile', data);
+        // Make sure desktop panel is hidden
+        document.getElementById('resultsPanel').classList.remove('active');
     }
 }
 
