@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // Create animated background particles
 function createParticles() {
     const particlesContainer = document.getElementById('particles');
-    const particleCount = 20;
+    const particleCount = 15;
     
     for (let i = 0; i < particleCount; i++) {
         const particle = document.createElement('div');
@@ -36,8 +36,13 @@ function createParticles() {
         particle.style.width = size + 'px';
         particle.style.height = size + 'px';
         
-        // Random position
+        // Random horizontal position
         particle.style.left = Math.random() * 100 + '%';
+        
+        // Start particles from bottom or middle of screen, never from top
+        const startPosition = 50 + Math.random() * 50; // 50% to 100% down the page
+        particle.style.bottom = `-${size}px`; // Start just below viewport
+        particle.style.top = 'auto';
         
         // Random animation delay and duration
         particle.style.animationDelay = Math.random() * 20 + 's';

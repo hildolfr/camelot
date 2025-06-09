@@ -39,22 +39,22 @@
             position: absolute;
             background: rgba(255, 255, 255, 0.1);
             border-radius: 50%;
-            animation: float 20s infinite linear;
+            animation: floatUp 20s infinite linear;
         }
         
-        @keyframes float {
+        @keyframes floatUp {
             from {
-                transform: translateY(100vh) rotate(0deg);
+                transform: translateY(0) rotate(0deg);
                 opacity: 0;
             }
             10% {
-                opacity: 0.4;
+                opacity: 0.3;
             }
             90% {
-                opacity: 0.4;
+                opacity: 0.3;
             }
             to {
-                transform: translateY(-100vh) rotate(360deg);
+                transform: translateY(-120vh) rotate(360deg);
                 opacity: 0;
             }
         }
@@ -347,6 +347,8 @@
             display: flex;
             gap: 1rem;
             margin-top: 2rem;
+            position: relative;
+            z-index: 2;
         }
         
         .btn {
@@ -358,6 +360,8 @@
             font-weight: bold;
             cursor: pointer;
             transition: all 0.2s ease;
+            position: relative;
+            z-index: 1;
         }
         
         .btn-primary {
@@ -365,9 +369,15 @@
             color: white;
         }
         
-        .btn-primary:hover {
+        .btn-primary:hover:not(:disabled) {
             background: #45a049;
             transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+        }
+        
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
         }
         
         .btn-secondary {
