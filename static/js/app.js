@@ -11,7 +11,8 @@ const SUITS = [
 // State management
 const state = {
     selectedCards: [], // Ordered list of selected cards
-    numOpponents: 0
+    numOpponents: 0,
+    history: [] // History of solved hands
 };
 
 // Initialize the app
@@ -19,13 +20,15 @@ document.addEventListener('DOMContentLoaded', () => {
     createParticles();
     generateCardGrid();
     setupEventListeners();
+    loadHistory();
     updateUI();
+    updateHistoryTicker();
 });
 
 // Create animated background particles
 function createParticles() {
     const particlesContainer = document.getElementById('particles');
-    const particleCount = 30; // Doubled particle density
+    const particleCount = 60; // Doubled particle density again
     
     for (let i = 0; i < particleCount; i++) {
         const particle = document.createElement('div');
@@ -300,6 +303,7 @@ async function calculateOdds() {
         
         if (data.success) {
             displayResults(data);
+            addToHistory(data);
         } else {
             showMessage(data.error || 'Calculation failed', 'error');
         }
@@ -499,6 +503,123 @@ function showMessage(message, type = 'info') {
         setTimeout(() => toast.remove(), 300);
     }, 3000);
 }
+
+// Add item to history ticker
+function addToHistory(data) {
+    const historyItem = {
+        heroHand: data.hero_hand,
+        boardCards: data.board_cards,
+        numOpponents: data.num_opponents,
+        winProbability: data.win_probability,
+        timestamp: new Date().toISOString()
+    };
+    
+    // Add to beginning of history
+    state.history.unshift(historyItem);
+    
+    // Keep only last 20 items
+    if (state.history.length > 20) {
+        state.history = state.history.slice(0, 20);
+    }
+    
+    saveHistory();
+    updateHistoryTicker();
+}
+
+// Save history to localStorage
+function saveHistory() {
+    try {
+        localStorage.setItem('camelotHistory', JSON.stringify(state.history));
+    } catch (e) {
+        console.error('Failed to save history:', e);
+    }
+}
+
+// Load history from localStorage
+function loadHistory() {
+    try {
+        const saved = localStorage.getItem('camelotHistory');
+        if (saved) {
+            state.history = JSON.parse(saved);
+            // Convert timestamp strings back to dates
+            state.history = state.history.map(item => ({
+                ...item,
+                timestamp: new Date(item.timestamp)
+            }));
+        }
+    } catch (e) {
+        console.error('Failed to load history:', e);
+        state.history = [];
+    }
+}
+
+// Update history ticker display
+function updateHistoryTicker() {
+    const tickerItems = document.getElementById('tickerItems');
+    tickerItems.innerHTML = '';
+    
+    if (state.history.length === 0) {
+        tickerItems.innerHTML = '<span style="opacity: 0.5;">No hands calculated yet...</span>';
+        return;
+    }
+    
+    // Create ticker items
+    state.history.forEach((item, index) => {
+        const tickerItem = document.createElement('div');
+        tickerItem.className = 'ticker-item';
+        tickerItem.style.animationDelay = `${index * 0.1}s`;
+        
+        // Determine win/loss class
+        let resultClass = 'tie';
+        let resultText = 'Even';
+        if (item.winProbability > 0.55) {
+            resultClass = 'win';
+            resultText = 'Strong';
+        } else if (item.winProbability < 0.45) {
+            resultClass = 'loss';
+            resultText = 'Weak';
+        }
+        
+        // Format time
+        const timeAgo = getTimeAgo(item.timestamp);
+        
+        // Build HTML
+        tickerItem.innerHTML = `
+            <span class="ticker-hand">${item.heroHand.join(' ')}</span>
+            ${item.boardCards.length > 0 ? `<span class="ticker-board">[${item.boardCards.join(' ')}]</span>` : ''}
+            <span class="ticker-opponents">vs ${item.numOpponents}</span>
+            <span class="ticker-result ${resultClass}">${(item.winProbability * 100).toFixed(0)}% ${resultText}</span>
+            <span class="ticker-time">${timeAgo}</span>
+        `;
+        
+        tickerItems.appendChild(tickerItem);
+    });
+    
+    // Add scrolling class if we have items
+    const tickerContent = document.getElementById('tickerContent');
+    if (state.history.length > 0) {
+        tickerContent.classList.add('scrolling');
+    } else {
+        tickerContent.classList.remove('scrolling');
+    }
+}
+
+// Get human-readable time ago
+function getTimeAgo(timestamp) {
+    const seconds = Math.floor((new Date() - timestamp) / 1000);
+    
+    if (seconds < 60) return 'just now';
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+    return `${Math.floor(seconds / 86400)}d ago`;
+}
+
+// Update ticker times periodically
+setInterval(() => {
+    if (state.history.length > 0) {
+        updateHistoryTicker();
+    }
+}, 30000); // Update every 30 seconds
 
 // Add CSS animations
 const style = document.createElement('style');

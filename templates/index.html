@@ -19,6 +19,7 @@
             min-height: 100vh;
             color: #fff;
             padding: 1rem;
+            padding-bottom: 60px; /* Space for ticker */
             overflow-x: hidden;
             position: relative;
         }
@@ -486,6 +487,96 @@
             to { transform: rotate(360deg); }
         }
         
+        /* History ticker */
+        .history-ticker {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 100;
+            overflow: hidden;
+            height: 50px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .ticker-content {
+            display: flex;
+            align-items: center;
+            padding: 0 2rem;
+            white-space: nowrap;
+        }
+        
+        .ticker-content.scrolling {
+            animation: scrollTicker 60s linear infinite;
+        }
+        
+        @keyframes scrollTicker {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+        
+        .ticker-label {
+            color: #FFD700;
+            font-weight: bold;
+            margin-right: 1rem;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+        }
+        
+        .ticker-items {
+            display: flex;
+            gap: 3rem;
+        }
+        
+        .ticker-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.3rem 1rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+        }
+        
+        .ticker-item:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(1.05);
+        }
+        
+        .ticker-hand {
+            font-weight: bold;
+            color: #90CAF9;
+        }
+        
+        .ticker-board {
+            color: #FFD700;
+        }
+        
+        .ticker-result {
+            font-weight: bold;
+        }
+        
+        .ticker-result.win {
+            color: #4CAF50;
+        }
+        
+        .ticker-result.loss {
+            color: #F44336;
+        }
+        
+        .ticker-result.tie {
+            color: #FFC107;
+        }
+        
+        .ticker-time {
+            font-size: 0.8rem;
+            opacity: 0.7;
+        }
+        
         @media (max-width: 600px) {
             .header h1 {
                 font-size: 2rem;
@@ -498,12 +589,29 @@
             .card {
                 font-size: 1.2rem;
             }
+            
+            .history-ticker {
+                height: 40px;
+            }
+            
+            .ticker-content {
+                padding: 0 1rem;
+                animation-duration: 20s;
+            }
         }
     </style>
 </head>
 <body>
     <!-- Animated background particles -->
     <div class="particles" id="particles"></div>
+    
+    <!-- History ticker -->
+    <div class="history-ticker" id="historyTicker">
+        <div class="ticker-content" id="tickerContent">
+            <span class="ticker-label">Recent Hands:</span>
+            <div class="ticker-items" id="tickerItems"></div>
+        </div>
+    </div>
     
     <div class="app-layout">
         <div class="main-content">
