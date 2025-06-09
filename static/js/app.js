@@ -179,6 +179,15 @@ function setupEventListeners() {
     // Clear button
     document.getElementById('clearBtn').addEventListener('click', clearAll);
     
+    // History button
+    document.getElementById('historyBtn').addEventListener('click', showHistoryModal);
+    
+    // Close history modal
+    document.getElementById('closeHistoryModal').addEventListener('click', hideHistoryModal);
+    document.getElementById('historyModal').addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) hideHistoryModal();
+    });
+    
     // Handle window resize for responsive layout
     window.addEventListener('resize', handleResize);
     handleResize(); // Initial check
@@ -595,19 +604,16 @@ function updateHistoryTicker() {
         tickerItems.appendChild(tickerItem);
     });
     
-    // Add scrolling class if we have items
-    const tickerContent = document.getElementById('tickerContent');
-    if (state.history.length > 0) {
-        tickerContent.classList.add('scrolling');
-    } else {
-        tickerContent.classList.remove('scrolling');
-    }
 }
 
 // Get human-readable time ago
 function getTimeAgo(timestamp) {
-    const seconds = Math.floor((new Date() - timestamp) / 1000);
+    // Ensure timestamp is a Date object
+    const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
+    const now = new Date();
+    const seconds = Math.floor((now - date) / 1000);
     
+    if (isNaN(seconds)) return 'unknown';
     if (seconds < 60) return 'just now';
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
     if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
@@ -620,6 +626,85 @@ setInterval(() => {
         updateHistoryTicker();
     }
 }, 30000); // Update every 30 seconds
+
+// Show history modal
+function showHistoryModal() {
+    const modal = document.getElementById('historyModal');
+    const modalBody = document.getElementById('historyModalBody');
+    
+    // Clear existing content
+    modalBody.innerHTML = '';
+    
+    if (state.history.length === 0) {
+        modalBody.innerHTML = '<p style="text-align: center; opacity: 0.7;">No calculations yet. Start by selecting cards and calculating odds!</p>';
+    } else {
+        // Create detailed history items
+        state.history.forEach((item, index) => {
+            const historyItem = document.createElement('div');
+            historyItem.className = 'history-item-full';
+            historyItem.style.animationDelay = `${index * 0.05}s`;
+            
+            // Determine result strength
+            let resultClass = 'tie';
+            let resultText = 'Even';
+            if (item.winProbability > 0.55) {
+                resultClass = 'win';
+                resultText = 'Strong Hand';
+            } else if (item.winProbability < 0.45) {
+                resultClass = 'loss';
+                resultText = 'Weak Hand';
+            }
+            
+            historyItem.innerHTML = `
+                <div class="history-item-header">
+                    <div class="history-item-cards">
+                        <span style="color: #90CAF9;">${item.heroHand.join(' ')}</span>
+                        ${item.boardCards.length > 0 ? `<span style="color: #FFD700; margin-left: 1rem;">[${item.boardCards.join(' ')}]</span>` : ''}
+                    </div>
+                    <div class="history-item-time">${getTimeAgo(item.timestamp)}</div>
+                </div>
+                <div class="history-item-details">
+                    <div class="history-detail">
+                        <div class="history-detail-label">Opponents</div>
+                        <div class="history-detail-value">${item.numOpponents}</div>
+                    </div>
+                    <div class="history-detail">
+                        <div class="history-detail-label">Win Probability</div>
+                        <div class="history-detail-value ${resultClass}">${(item.winProbability * 100).toFixed(1)}%</div>
+                    </div>
+                    <div class="history-detail">
+                        <div class="history-detail-label">Assessment</div>
+                        <div class="history-detail-value ${resultClass}">${resultText}</div>
+                    </div>
+                    <div class="history-detail">
+                        <div class="history-detail-label">Stage</div>
+                        <div class="history-detail-value">${getGameStage(item.boardCards.length)}</div>
+                    </div>
+                </div>
+            `;
+            
+            modalBody.appendChild(historyItem);
+        });
+    }
+    
+    modal.classList.add('active');
+}
+
+// Hide history modal
+function hideHistoryModal() {
+    document.getElementById('historyModal').classList.remove('active');
+}
+
+// Get game stage based on board cards
+function getGameStage(boardCardCount) {
+    switch(boardCardCount) {
+        case 0: return 'Pre-flop';
+        case 3: return 'Flop';
+        case 4: return 'Turn';
+        case 5: return 'River';
+        default: return 'Unknown';
+    }
+}
 
 // Add CSS animations
 const style = document.createElement('style');

@@ -508,15 +508,22 @@
             align-items: center;
             padding: 0 2rem;
             white-space: nowrap;
+            width: fit-content;
         }
         
-        .ticker-content.scrolling {
-            animation: scrollTicker 60s linear infinite;
+        .ticker-items {
+            display: flex;
+            gap: 3rem;
+            animation: scrollLeft 30s linear infinite;
         }
         
-        @keyframes scrollTicker {
-            0% { transform: translateX(0); }
-            100% { transform: translateX(-50%); }
+        @keyframes scrollLeft {
+            0% { 
+                transform: translateX(100vw); 
+            }
+            100% { 
+                transform: translateX(calc(-100% - 100vw)); 
+            }
         }
         
         .ticker-label {
@@ -526,10 +533,6 @@
             text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
         }
         
-        .ticker-items {
-            display: flex;
-            gap: 3rem;
-        }
         
         .ticker-item {
             display: flex;
@@ -575,6 +578,132 @@
         .ticker-time {
             font-size: 0.8rem;
             opacity: 0.7;
+        }
+        
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(5px);
+            z-index: 1000;
+            animation: fadeIn 0.3s ease-out;
+        }
+        
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-content {
+            background: linear-gradient(145deg, #1e3c72, #2a5298);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            max-width: 800px;
+            max-height: 80vh;
+            width: 90%;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+            animation: slideUp 0.3s ease-out;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(0, 0, 0, 0.2);
+        }
+        
+        .modal-header h2 {
+            margin: 0;
+            color: #FFD700;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 2rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+        }
+        
+        .modal-close:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: rotate(90deg);
+        }
+        
+        .modal-body {
+            padding: 1.5rem;
+            max-height: calc(80vh - 80px);
+            overflow-y: auto;
+        }
+        
+        .history-item-full {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .history-item-full:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateX(5px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+        
+        .history-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        
+        .history-item-cards {
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+        
+        .history-item-time {
+            opacity: 0.7;
+            font-size: 0.9rem;
+        }
+        
+        .history-item-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-top: 0.5rem;
+        }
+        
+        .history-detail {
+            text-align: center;
+        }
+        
+        .history-detail-label {
+            font-size: 0.8rem;
+            opacity: 0.7;
+            margin-bottom: 0.2rem;
+        }
+        
+        .history-detail-value {
+            font-size: 1.1rem;
+            font-weight: bold;
         }
         
         @media (max-width: 600px) {
@@ -665,6 +794,7 @@
                 <div class="action-buttons">
                     <button id="calculateBtn" class="btn btn-primary" disabled>Calculate Odds</button>
                     <button id="clearBtn" class="btn btn-secondary">Clear All</button>
+                    <button id="historyBtn" class="btn btn-secondary">📜 History</button>
                 </div>
                 
                 <div id="loading" class="loading">
@@ -695,6 +825,19 @@
                     <div id="lossBar" class="result-segment loss-segment"></div>
                 </div>
                 <div id="resultDetails" style="flex: 1; overflow-y: auto;"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- History Modal -->
+    <div id="historyModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📜 Calculation History</h2>
+                <button class="modal-close" id="closeHistoryModal">&times;</button>
+            </div>
+            <div class="modal-body" id="historyModalBody">
+                <!-- History will be populated here -->
             </div>
         </div>
     </div>
