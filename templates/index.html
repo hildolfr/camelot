@@ -227,25 +227,49 @@
         }
         
         .card-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
-            gap: 0.6rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
             margin-bottom: 1rem;
-            padding: 0.5rem;
+            padding: 0.8rem;
             background: rgba(0, 0, 0, 0.2);
             border-radius: 16px;
         }
         
-        .card {
-            aspect-ratio: 2/3;
-            background: linear-gradient(145deg, #fff, #f0f0f0);
-            border: 3px solid transparent;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        .suit-row {
             display: flex;
             align-items: center;
-            justify-content: center;
+            gap: 0.8rem;
+        }
+        
+        .suit-label {
+            width: 40px;
+            text-align: center;
+            font-size: 1.8rem;
+            opacity: 0.8;
+        }
+        
+        .suit-label .red {
+            color: #FF6B6B;
+        }
+        
+        .suit-cards {
+            display: flex;
+            gap: 0.3rem;
+            flex: 1;
+            min-width: 0; /* Allow shrinking */
+        }
+        
+        .card {
+            flex: 1;
+            max-width: 70px;
+            min-width: 40px;
+            aspect-ratio: 2/3;
+            background: linear-gradient(145deg, #fff, #f0f0f0);
+            border: 2px solid transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             font-size: 1.6rem;
             font-weight: bold;
             color: #333;
@@ -307,17 +331,32 @@
             color: #B71C1C;
         }
         
-        .suit-icon {
-            font-size: 1.3rem;
+        .card-corner-top {
             position: absolute;
-            bottom: 0.4rem;
-            right: 0.4rem;
+            top: 2px;
+            left: 2px;
+            text-align: center;
+            line-height: 0.9;
+            font-size: 0.75rem;
+            font-weight: bold;
+        }
+        
+        .card-corner-bottom {
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            text-align: center;
+            line-height: 0.9;
+            font-size: 0.75rem;
+            font-weight: bold;
+            transform: rotate(180deg);
         }
         
         .selection-badge {
             position: absolute;
-            top: 0.3rem;
-            left: 0.3rem;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             background: #4CAF50;
             color: white;
             border-radius: 50%;
@@ -326,10 +365,11 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.8rem;
+            font-size: 0.85rem;
             font-weight: bold;
             animation: badgePop 0.3s ease-out;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            z-index: 10;
         }
         
         @keyframes badgePop {
@@ -427,9 +467,71 @@
             flex-direction: column;
         }
         
+        /* Statistics dropdown */
+        .stats-controls {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            padding: 0.8rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+        }
+        
+        .stats-label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+        
+        .stats-dropdown {
+            flex: 1;
+            max-width: 200px;
+            padding: 0.6rem 1rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+            appearance: none;
+            background-image: url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12"%3e%3cpath fill="white" d="M10.293 3.293L6 7.586 1.707 3.293A1 1 0 00.293 4.707l5 5a1 1 0 001.414 0l5-5a1 1 0 10-1.414-1.414z"/%3e%3c/svg%3e');
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+            padding-right: 2.5rem;
+        }
+        
+        .stats-dropdown:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+        
+        .stats-dropdown:focus {
+            outline: none;
+            border-color: #4CAF50;
+            box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.3);
+        }
+        
+        .stats-dropdown option {
+            background: #1e3c72;
+            color: white;
+        }
+        
+        .stats-content {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            scrollbar-width: none; /* Firefox */
+            -ms-overflow-style: none; /* IE and Edge */
+        }
+        
+        .stats-content::-webkit-scrollbar {
+            display: none; /* Chrome, Safari, Opera */
+        }
+        
         .result-bar {
             display: flex;
-            margin-bottom: 1rem;
+            margin-bottom: 0.5rem;
             height: 40px;
             border-radius: 20px;
             overflow: hidden;
@@ -442,6 +544,7 @@
             justify-content: center;
             font-weight: bold;
             transition: all 0.5s ease;
+            position: relative;
         }
         
         .win-segment {
@@ -456,20 +559,300 @@
             background: #F44336;
         }
         
-        .loading {
-            display: none;
-            text-align: center;
-            margin: 2rem 0;
+        .result-percentages {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
         }
         
-        .spinner {
-            width: 50px;
+        .result-label {
+            text-align: center;
+            flex: 1;
+        }
+        
+        .result-label .percentage {
+            font-size: 1.2rem;
+            font-weight: bold;
+            display: block;
+            margin-bottom: 0.2rem;
+        }
+        
+        .result-label .label {
+            font-size: 0.8rem;
+            opacity: 0.7;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .result-label.win .percentage {
+            color: #4CAF50;
+        }
+        
+        .result-label.tie .percentage {
+            color: #FFC107;
+        }
+        
+        .result-label.loss .percentage {
+            color: #F44336;
+        }
+        
+        .loading {
+            display: none;
+            position: relative;
+            flex: 1;
+            justify-content: center;
+            align-items: center;
+            min-height: 60px;
+        }
+        
+        .loading.active {
+            display: flex;
+        }
+        
+        .loading-content {
+            text-align: center;
+            animation: fadeIn 0.3s ease-out;
+        }
+        
+        .card-shuffle {
+            position: relative;
+            width: 90px;
             height: 50px;
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            border-top-color: white;
+            margin: 0 auto 0.5rem;
+        }
+        
+        .loading-card {
+            position: absolute;
+            width: 40px;
+            height: 50px;
+            background: linear-gradient(135deg, #fff 0%, #f0f0f0 100%);
+            border: 2px solid #333;
+            border-radius: 6px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            animation: shuffleCard 1.5s ease-in-out infinite;
+        }
+        
+        .loading-card:nth-child(1) {
+            left: 0;
+            animation-delay: 0s;
+            z-index: 3;
+        }
+        
+        .loading-card:nth-child(2) {
+            left: 25px;
+            animation-delay: 0.5s;
+            z-index: 2;
+        }
+        
+        .loading-card:nth-child(3) {
+            left: 50px;
+            animation-delay: 1s;
+            z-index: 1;
+        }
+        
+        @keyframes shuffleCard {
+            0% {
+                transform: translateY(0) rotate(0deg);
+            }
+            25% {
+                transform: translateY(-20px) rotate(-10deg);
+            }
+            50% {
+                transform: translateY(-15px) rotate(0deg) translateX(10px);
+            }
+            75% {
+                transform: translateY(-5px) rotate(10deg);
+            }
+            100% {
+                transform: translateY(0) rotate(0deg);
+            }
+        }
+        
+        .loading-text {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 0.9rem;
+            font-weight: 300;
+            letter-spacing: 0.5px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        .opponents-section {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+        }
+        
+        /* Tournament mode styles */
+        .tournament-toggle {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+        
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 26px;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.2);
+            transition: all 0.4s;
+            border-radius: 34px;
+        }
+        
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: all 0.4s;
             border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 1rem;
+        }
+        
+        input:checked + .toggle-slider {
+            background-color: #4CAF50;
+        }
+        
+        input:checked + .toggle-slider:before {
+            transform: translateX(24px);
+        }
+        
+        .tournament-options {
+            display: none;
+            margin-top: 1rem;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            animation: slideDown 0.3s ease-out;
+        }
+        
+        .tournament-options.active {
+            display: block;
+        }
+        
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .position-selector {
+            margin-bottom: 1rem;
+        }
+        
+        .position-selector label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+        
+        .position-dropdown {
+            width: 100%;
+            padding: 0.6rem 1rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        
+        .position-dropdown option {
+            background: #1e3c72;
+            color: white;
+        }
+        
+        .stack-sizes {
+            margin-bottom: 1rem;
+        }
+        
+        .stack-sizes-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+        
+        .stack-inputs {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 0.5rem;
+        }
+        
+        .stack-input {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+        
+        .stack-input label {
+            font-size: 0.8rem;
+            opacity: 0.7;
+        }
+        
+        .stack-input input {
+            padding: 0.4rem 0.6rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            color: white;
+            font-size: 0.9rem;
+        }
+        
+        .stack-input input:focus {
+            outline: none;
+            border-color: #4CAF50;
+            box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.3);
+        }
+        
+        @media (max-width: 768px) {
+            .opponents-section {
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            .loading {
+                width: 100%;
+            }
+            
+            .tournament-options {
+                padding: 0.8rem;
+            }
+            
+            .stack-inputs {
+                grid-template-columns: repeat(2, 1fr);
+            }
         }
         
         @keyframes fadeIn {
@@ -849,6 +1232,7 @@
             justify-content: center;
             font-size: 1.2rem;
             font-weight: bold;
+            color: #000;
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
             animation: dealCard 0.3s ease-out backwards;
         }
@@ -859,11 +1243,13 @@
         
         .poker-card .rank {
             font-size: 1.3rem;
+            line-height: 1;
         }
         
         .poker-card .suit {
             font-size: 1.1rem;
             margin-top: -5px;
+            line-height: 1;
         }
         
         @keyframes dealCard {
@@ -932,6 +1318,182 @@
             animation: implode 0.5s ease-in forwards;
         }
         
+        /* Position help modal */
+        .position-help-modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(145deg, #1e3c72, #2a5298);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            padding: 2rem;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            animation: fadeIn 0.3s ease-out;
+        }
+        
+        .position-help-modal.active {
+            display: block;
+        }
+        
+        .position-help-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+        
+        .position-help-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.2s;
+        }
+        
+        .position-help-close:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .position-list {
+            display: grid;
+            gap: 1rem;
+        }
+        
+        .position-item {
+            display: grid;
+            grid-template-columns: 100px 1fr;
+            gap: 1rem;
+            padding: 0.8rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .position-name {
+            font-weight: bold;
+            color: #FFD700;
+        }
+        
+        .position-description {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            line-height: 1.4;
+        }
+        
+        /* Mathematician view styles */
+        .result-stats h5 {
+            margin-bottom: 0.5rem;
+        }
+        
+        /* Responsive breakpoints for card layout */
+        @media (max-width: 900px) {
+            .suit-cards {
+                gap: 0.2rem;
+            }
+            
+            .card {
+                min-width: 35px;
+            }
+            
+            .card-corner-top,
+            .card-corner-bottom {
+                font-size: 0.7rem;
+            }
+            
+            .selection-badge {
+                width: 20px;
+                height: 20px;
+                font-size: 0.75rem;
+            }
+        }
+        
+        /* Very small screens - allow wrapping as last resort */
+        @media (max-width: 500px) {
+            .suit-cards {
+                flex-wrap: wrap;
+            }
+            
+            .card {
+                flex: 0 1 calc(50% - 0.1rem);
+                max-width: 60px;
+                min-width: 45px;
+            }
+            
+            .suit-label {
+                width: 30px;
+                font-size: 1.4rem;
+            }
+        }
+        
+        /* Cache Status Indicator */
+        .cache-status {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            padding: 0.8rem 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            z-index: 100;
+            animation: slideInRight 0.3s ease-out;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+        
+        .cache-icon {
+            font-size: 1.5rem;
+            animation: pulse 2s infinite;
+        }
+        
+        .cache-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+        }
+        
+        .cache-warning {
+            font-size: 0.7rem;
+            color: #FFC107;
+            opacity: 0.9;
+            margin-top: 0.2rem;
+        }
+        
+        .cache-title {
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: #FFD700;
+        }
+        
+        .cache-stats {
+            font-size: 0.75rem;
+            opacity: 0.8;
+        }
+        
+        .cache-rate {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(0.9); }
+        }
+        
         @media (max-width: 600px) {
             .header h1 {
                 font-size: 2rem;
@@ -941,17 +1503,18 @@
                 padding: 1.5rem;
             }
             
-            .card {
-                font-size: 1.2rem;
+            .suit-row {
+                gap: 0.5rem;
             }
             
-            .history-ticker {
-                height: 40px;
+            .stats-controls {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 0.5rem;
             }
             
-            .ticker-content {
-                padding: 0 1rem;
-                animation-duration: 20s;
+            .stats-dropdown {
+                max-width: none;
             }
         }
     </style>
@@ -959,6 +1522,19 @@
 <body>
     <!-- Animated background particles -->
     <div class="particles" id="particles"></div>
+    
+    <!-- Cache Status Indicator -->
+    <div id="cacheStatus" class="cache-status" style="display: none;">
+        <div class="cache-icon">⚡</div>
+        <div class="cache-info">
+            <div class="cache-title">Cache Warming</div>
+            <div class="cache-stats">
+                <span id="cacheCount">0</span> entries
+                <span class="cache-rate">(<span id="cacheRate">0</span>/min)</span>
+            </div>
+            <div class="cache-warning">Performance may be slower during this process</div>
+        </div>
+    </div>
     
     <div class="app-layout">
         <div class="main-content">
@@ -999,13 +1575,76 @@
             
             <div class="section">
                 <h2 class="section-title">👥 Number of Opponents</h2>
-                <div class="opponents-selector">
-                    <button class="opponent-btn" data-opponents="1">1</button>
-                    <button class="opponent-btn" data-opponents="2">2</button>
-                    <button class="opponent-btn" data-opponents="3">3</button>
-                    <button class="opponent-btn" data-opponents="4">4</button>
-                    <button class="opponent-btn" data-opponents="5">5</button>
-                    <button class="opponent-btn" data-opponents="6">6</button>
+                <div class="opponents-section">
+                    <div class="opponents-selector">
+                        <button class="opponent-btn" data-opponents="1">1</button>
+                        <button class="opponent-btn" data-opponents="2">2</button>
+                        <button class="opponent-btn" data-opponents="3">3</button>
+                        <button class="opponent-btn" data-opponents="4">4</button>
+                        <button class="opponent-btn" data-opponents="5">5</button>
+                        <button class="opponent-btn" data-opponents="6">6</button>
+                    </div>
+                    <div id="loading" class="loading">
+                        <div class="loading-content">
+                            <div class="card-shuffle">
+                                <div class="loading-card">♠</div>
+                                <div class="loading-card">♥</div>
+                                <div class="loading-card">♦</div>
+                            </div>
+                            <div class="loading-text">Calculating...</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tournament Mode -->
+                <div class="tournament-toggle">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="tournamentMode">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span>🏆 Tournament Mode</span>
+                    <span style="font-size: 0.8rem; opacity: 0.7; margin-left: auto;">(ICM & Position)</span>
+                </div>
+                
+                <div class="tournament-options" id="tournamentOptions">
+                    <div class="position-selector">
+                        <label for="heroPosition">
+                            Your Position
+                            <button type="button" onclick="showPositionHelp()" style="background: none; border: 1px solid rgba(255,255,255,0.3); color: white; width: 20px; height: 20px; border-radius: 50%; font-size: 0.8rem; margin-left: 0.5rem; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='none'">?</button>
+                        </label>
+                        <select class="position-dropdown" id="heroPosition">
+                            <option value="">Select Position</option>
+                            <option value="button">Button (BTN)</option>
+                            <option value="sb">Small Blind (SB)</option>
+                            <option value="bb">Big Blind (BB)</option>
+                            <option value="utg">Under the Gun (UTG)</option>
+                            <option value="utg+1">UTG+1</option>
+                            <option value="mp">Middle Position (MP)</option>
+                            <option value="mp+1">MP+1</option>
+                            <option value="co">Cutoff (CO)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="stack-sizes">
+                        <label class="stack-sizes-label">Stack Sizes (in big blinds)</label>
+                        <div class="stack-inputs" id="stackInputs">
+                            <div class="stack-input">
+                                <label>Hero</label>
+                                <input type="number" id="heroStack" placeholder="100" min="1" value="100">
+                            </div>
+                            <!-- Opponent stacks will be dynamically added here -->
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 1rem;">
+                        <label style="display: block; margin-bottom: 0.5rem; font-size: 0.9rem; opacity: 0.8;">Pot Size (in big blinds)</label>
+                        <input type="number" id="potSize" placeholder="0" min="0" value="0" style="width: 150px; padding: 0.6rem 1rem; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; color: white; font-size: 0.9rem;">
+                        <span style="font-size: 0.8rem; opacity: 0.7; margin-left: 0.5rem;">Leave 0 for pre-flop</span>
+                    </div>
+                    
+                    <p style="font-size: 0.8rem; opacity: 0.7; margin-top: 1rem;">
+                        Stack sizes and pot size enable ICM calculations and SPR analysis
+                    </p>
                 </div>
             </div>
             
@@ -1015,20 +1654,27 @@
                     <button id="historyBtn" class="btn btn-secondary">📜 History</button>
                 </div>
                 
-                <div id="loading" class="loading">
-                    <div class="spinner"></div>
-                    <p>Calculating your odds...</p>
-                </div>
+                <!-- Loading overlay moved outside calculator-card -->
                 
                 <!-- Results for mobile/portrait view -->
                 <div id="mobileResults" class="results" style="display: none; margin-top: 2rem;">
                     <h3>Results</h3>
-                    <div class="result-bar">
-                        <div id="winBarMobile" class="result-segment win-segment"></div>
-                        <div id="tieBarMobile" class="result-segment tie-segment"></div>
-                        <div id="lossBarMobile" class="result-segment loss-segment"></div>
+                    <div class="stats-controls">
+                        <label class="stats-label" for="statsMobileDropdown">Detail Level:</label>
+                        <select class="stats-dropdown" id="statsMobileDropdown" onchange="switchStatsLevel('Mobile', this.value)">
+                            <option value="basic">Basic</option>
+                            <option value="standard" selected>Standard</option>
+                            <option value="advanced">Advanced</option>
+                            <option value="expert">Expert</option>
+                            <option value="mathematician">Math Mode</option>
+                        </select>
                     </div>
-                    <div id="resultDetailsMobile"></div>
+                    <div class="stats-content">
+                        <div class="chart-container" style="position: relative; height: 200px; margin-bottom: 1rem;">
+                            <canvas id="probabilityChartMobile"></canvas>
+                        </div>
+                        <div id="resultDetailsMobile"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1037,12 +1683,22 @@
         <div class="results-panel" id="resultsPanel">
             <div class="results">
                 <h3>🏆 Results</h3>
-                <div class="result-bar" style="margin-top: 1rem;">
-                    <div id="winBar" class="result-segment win-segment"></div>
-                    <div id="tieBar" class="result-segment tie-segment"></div>
-                    <div id="lossBar" class="result-segment loss-segment"></div>
+                <div class="stats-controls">
+                    <label class="stats-label" for="statsDropdown">Detail Level:</label>
+                    <select class="stats-dropdown" id="statsDropdown" onchange="switchStatsLevel('', this.value)">
+                        <option value="basic">Basic</option>
+                        <option value="standard" selected>Standard</option>
+                        <option value="advanced">Advanced</option>
+                        <option value="expert">Expert</option>
+                        <option value="mathematician">Math Mode</option>
+                    </select>
                 </div>
-                <div id="resultDetails" style="flex: 1; overflow-y: auto;"></div>
+                <div class="stats-content">
+                    <div class="chart-container" style="position: relative; height: 200px; margin-bottom: 1rem;">
+                        <canvas id="probabilityChart"></canvas>
+                    </div>
+                    <div id="resultDetails" style="flex: 1; overflow-y: auto;"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -1088,6 +1744,44 @@
         </div>
     </div>
     
+    <!-- Position Help Modal -->
+    <div id="positionHelpModal" class="position-help-modal">
+        <div class="position-help-header">
+            <h3 style="color: #FFD700; margin: 0;">Poker Table Positions</h3>
+            <button class="position-help-close" onclick="hidePositionHelp()">&times;</button>
+        </div>
+        <div class="position-list">
+            <div class="position-item">
+                <div class="position-name">BTN (Button)</div>
+                <div class="position-description">Best position. Acts last post-flop. Maximum information and control.</div>
+            </div>
+            <div class="position-item">
+                <div class="position-name">CO (Cutoff)</div>
+                <div class="position-description">Second best position. One seat before the button. Strong stealing position.</div>
+            </div>
+            <div class="position-item">
+                <div class="position-name">MP (Middle)</div>
+                <div class="position-description">Middle positions. Moderate strength. Balance between early and late positions.</div>
+            </div>
+            <div class="position-item">
+                <div class="position-name">UTG (Under the Gun)</div>
+                <div class="position-description">First to act pre-flop. Worst position. Requires strongest hands.</div>
+            </div>
+            <div class="position-item">
+                <div class="position-name">SB (Small Blind)</div>
+                <div class="position-description">Acts first post-flop. Worst position overall despite acting late pre-flop.</div>
+            </div>
+            <div class="position-item">
+                <div class="position-name">BB (Big Blind)</div>
+                <div class="position-description">Last to act pre-flop. Gets best pot odds but poor post-flop position.</div>
+            </div>
+        </div>
+        <p style="margin-top: 1rem; font-size: 0.85rem; opacity: 0.7; text-align: center;">
+            Position affects hand ranges, betting frequencies, and overall strategy
+        </p>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="/static/js/app.js"></script>
 </body>
 </html>

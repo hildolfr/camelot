@@ -12,7 +12,15 @@ const SUITS = [
 const state = {
     selectedCards: [], // Ordered list of selected cards
     numOpponents: 0,
-    history: [] // History of solved hands
+    history: [], // History of solved hands
+    currentStatsLevel: localStorage.getItem('statsLevel') || 'standard', // Load saved preference or default to standard
+    lastCalculationData: null, // Store the last calculation result
+    tournamentMode: localStorage.getItem('tournamentMode') === 'true',
+    heroPosition: localStorage.getItem('heroPosition') || '',
+    stackSizes: JSON.parse(localStorage.getItem('stackSizes') || '[100]'), // Hero stack at index 0
+    potSize: parseInt(localStorage.getItem('potSize') || '0'),
+    probabilityChart: null, // Chart instance for desktop
+    probabilityChartMobile: null // Chart instance for mobile
 };
 
 // Initialize the app
@@ -22,6 +30,32 @@ document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
     loadHistory();
     updateUI();
+    
+    // Set dropdown values to match saved preference
+    const dropdowns = document.querySelectorAll('.stats-dropdown');
+    dropdowns.forEach(dropdown => {
+        dropdown.value = state.currentStatsLevel;
+    });
+    
+    // Restore tournament mode state
+    if (state.tournamentMode) {
+        document.getElementById('tournamentMode').checked = true;
+        document.getElementById('tournamentOptions').classList.add('active');
+        updateStackInputs();
+    }
+    
+    // Restore tournament mode inputs
+    if (state.heroPosition) {
+        document.getElementById('heroPosition').value = state.heroPosition;
+    }
+    document.getElementById('heroStack').value = state.stackSizes[0];
+    document.getElementById('potSize').value = state.potSize;
+    
+    // Setup help icon interactions for mobile
+    setupHelpIconInteractions();
+    
+    // Start monitoring cache status
+    startCacheStatusMonitoring();
 });
 
 // Create animated background particles
@@ -59,14 +93,30 @@ function generateCardGrid() {
     const grid = document.getElementById('cardGrid');
     grid.innerHTML = '';
     
-    // Generate cards sorted by suit (all spades, then hearts, then diamonds, then clubs)
-    // Within each suit, cards are already in rank order (A, K, Q, J, 10, 9, 8, 7, 6, 5, 4, 3, 2)
+    // Generate cards in rows by suit
     SUITS.forEach(suit => {
+        // Create a row container for each suit
+        const suitRow = document.createElement('div');
+        suitRow.className = 'suit-row';
+        
+        // Add suit label
+        const suitLabel = document.createElement('div');
+        suitLabel.className = 'suit-label';
+        suitLabel.innerHTML = `<span class="${suit.color === 'red' ? 'red' : ''}">${suit.symbol}</span>`;
+        suitRow.appendChild(suitLabel);
+        
+        // Add cards container
+        const cardsContainer = document.createElement('div');
+        cardsContainer.className = 'suit-cards';
+        
         RANKS.forEach(rank => {
             const cardId = `${rank}${suit.symbol}`;
             const card = createCardElement(cardId, rank, suit);
-            grid.appendChild(card);
+            cardsContainer.appendChild(card);
         });
+        
+        suitRow.appendChild(cardsContainer);
+        grid.appendChild(suitRow);
     });
 }
 
@@ -76,8 +126,14 @@ function createCardElement(cardId, rank, suit) {
     card.className = `card ${suit.color === 'red' ? 'red' : ''}`;
     card.dataset.card = cardId;
     card.innerHTML = `
-        ${rank}
-        <span class="suit-icon">${suit.symbol}</span>
+        <div class="card-corner-top">
+            <div>${rank}</div>
+            <div>${suit.symbol}</div>
+        </div>
+        <div class="card-corner-bottom">
+            <div>${rank}</div>
+            <div>${suit.symbol}</div>
+        </div>
     `;
     
     card.addEventListener('click', () => handleCardClick(cardId));
@@ -168,6 +224,11 @@ function setupEventListeners() {
             btn.style.animation = 'pulse 0.3s ease-out';
             setTimeout(() => btn.style.animation = '', 300);
             
+            // Update stack inputs if in tournament mode
+            if (state.tournamentMode) {
+                updateStackInputs();
+            }
+            
             updateUI();
         });
     });
@@ -205,6 +266,37 @@ function setupEventListeners() {
             return;
         }
         deselectHistoryItem();
+    });
+    
+    // Tournament mode toggle
+    document.getElementById('tournamentMode').addEventListener('change', (e) => {
+        state.tournamentMode = e.target.checked;
+        localStorage.setItem('tournamentMode', state.tournamentMode);
+        const options = document.getElementById('tournamentOptions');
+        options.classList.toggle('active', state.tournamentMode);
+        
+        if (state.tournamentMode) {
+            updateStackInputs();
+        }
+    });
+    
+    // Position selector
+    document.getElementById('heroPosition').addEventListener('change', (e) => {
+        state.heroPosition = e.target.value;
+        localStorage.setItem('heroPosition', state.heroPosition);
+    });
+    
+    // Hero stack input
+    document.getElementById('heroStack').addEventListener('input', (e) => {
+        const value = parseInt(e.target.value) || 100;
+        state.stackSizes[0] = value;
+        localStorage.setItem('stackSizes', JSON.stringify(state.stackSizes));
+    });
+    
+    // Pot size input
+    document.getElementById('potSize').addEventListener('input', (e) => {
+        state.potSize = parseInt(e.target.value) || 0;
+        localStorage.setItem('potSize', state.potSize);
     });
     
     // Handle window resize for responsive layout
@@ -297,7 +389,7 @@ async function calculateOdds() {
     const boardCards = state.selectedCards.slice(2);
     
     // Show loading
-    loading.style.display = 'block';
+    loading.classList.add('active');
     
     // Prepare request data
     const requestData = {
@@ -305,6 +397,19 @@ async function calculateOdds() {
         num_opponents: state.numOpponents,
         board_cards: boardCards.length > 0 ? boardCards : null,
         simulation_mode: 'default'
+    };
+    
+    // Add tournament mode parameters if enabled
+    if (state.tournamentMode) {
+        if (state.heroPosition) {
+            requestData.hero_position = state.heroPosition;
+        }
+        if (state.stackSizes.length > 1) {
+            requestData.stack_sizes = state.stackSizes.slice(0, state.numOpponents + 1);
+        }
+        if (state.potSize > 0) {
+            requestData.pot_size = state.potSize;
+        }
     };
     
     try {
@@ -330,6 +435,7 @@ async function calculateOdds() {
         }
         
         if (data.success) {
+            state.lastCalculationData = data; // Store for tab switching
             displayResults(data);
             addToHistory(data);
         } else {
@@ -338,7 +444,7 @@ async function calculateOdds() {
     } catch (error) {
         showMessage('Network error: ' + error.message, 'error');
     } finally {
-        loading.style.display = 'none';
+        loading.classList.remove('active');
     }
 }
 
@@ -363,31 +469,206 @@ function displayResults(data) {
 
 // Update results display
 function updateResultsDisplay(suffix, data) {
-    const winBar = document.getElementById('winBar' + suffix);
-    const tieBar = document.getElementById('tieBar' + suffix);
-    const lossBar = document.getElementById('lossBar' + suffix);
+    const winPct = parseFloat((data.win_probability * 100).toFixed(1));
+    const tiePct = parseFloat((data.tie_probability * 100).toFixed(1));
+    const lossPct = parseFloat((data.loss_probability * 100).toFixed(1));
+    
+    // Create or update donut chart
+    const chartId = suffix === 'Mobile' ? 'probabilityChartMobile' : 'probabilityChart';
+    const ctx = document.getElementById(chartId).getContext('2d');
+    
+    // Destroy existing chart if it exists
+    if (suffix === 'Mobile' && state.probabilityChartMobile) {
+        state.probabilityChartMobile.destroy();
+    } else if (suffix === '' && state.probabilityChart) {
+        state.probabilityChart.destroy();
+    }
+    
+    // Add total equity in the center
+    const equity = data.win_probability + (data.tie_probability * 0.5);
+    const equityText = (equity * 100).toFixed(1) + '%';
+    
+    // Custom plugin to draw text in center
+    const centerTextPlugin = {
+        id: 'centerText',
+        afterDraw: (chart) => {
+            const ctx = chart.ctx;
+            ctx.save();
+            const centerX = chart.getDatasetMeta(0).data[0].x;
+            const centerY = chart.getDatasetMeta(0).data[0].y;
+            
+            // Draw "Total Equity" label
+            ctx.font = '12px sans-serif';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('Total Equity', centerX, centerY - 10);
+            
+            // Draw equity percentage
+            ctx.font = 'bold 24px sans-serif';
+            ctx.fillStyle = equity > 0.5 ? '#4CAF50' : equity < 0.5 ? '#F44336' : '#FFC107';
+            ctx.fillText(equityText, centerX, centerY + 10);
+            
+            ctx.restore();
+        }
+    };
+    
+    // Create new donut chart with the plugin included
+    const chartConfig = {
+        type: 'doughnut',
+        data: {
+            labels: ['Win', 'Tie', 'Loss'],
+            datasets: [{
+                data: [winPct, tiePct, lossPct],
+                backgroundColor: ['#4CAF50', '#FFC107', '#F44336'],
+                borderColor: ['#2E7D32', '#F57C00', '#C62828'],
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        color: 'white',
+                        padding: 15,
+                        font: {
+                            size: 14
+                        },
+                        generateLabels: function(chart) {
+                            const data = chart.data;
+                            if (data.labels.length && data.datasets.length) {
+                                return data.labels.map((label, i) => {
+                                    const value = data.datasets[0].data[i];
+                                    return {
+                                        text: `${label}: ${value}%`,
+                                        fillStyle: data.datasets[0].backgroundColor[i],
+                                        strokeStyle: data.datasets[0].borderColor[i],
+                                        lineWidth: 2,
+                                        hidden: false,
+                                        index: i
+                                    };
+                                });
+                            }
+                            return [];
+                        }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.label + ': ' + context.parsed + '%';
+                        }
+                    }
+                }
+            },
+            animation: {
+                animateRotate: true,
+                animateScale: false,
+                duration: 1000
+            },
+            cutout: '60%'
+        },
+        plugins: [centerTextPlugin] // Register the plugin here
+    };
+    
+    // Store chart instance
+    if (suffix === 'Mobile') {
+        state.probabilityChartMobile = new Chart(ctx, chartConfig);
+    } else {
+        state.probabilityChart = new Chart(ctx, chartConfig);
+    }
+    
+    // Update details based on current stats level
+    updateStatsContent(suffix, data, state.currentStatsLevel);
+}
+
+// Update stats content based on selected level
+function updateStatsContent(suffix, data, level) {
     const details = document.getElementById('resultDetails' + suffix);
     
+    switch(level) {
+        case 'basic':
+            details.innerHTML = getBasicStats(data);
+            break;
+        case 'standard':
+            details.innerHTML = getStandardStats(data);
+            break;
+        case 'advanced':
+            details.innerHTML = getAdvancedStats(data);
+            break;
+        case 'expert':
+            details.innerHTML = getExpertStats(data);
+            break;
+        case 'mathematician':
+            details.innerHTML = getMathematicianStats(data);
+            break;
+    }
+}
+
+// Basic statistics - just the essentials
+function getBasicStats(data) {
+    const winPct = (data.win_probability * 100).toFixed(1);
+    
+    return `
+        <div class="hand-strength" style="animation: fadeIn 0.3s ease-out">
+            <h4>💪 Hand Strength</h4>
+            <div class="strength-meter">
+                <div class="strength-fill" style="width: ${winPct}%; transition: width 1s ease-out;"></div>
+            </div>
+            <p style="margin-top: 0.5rem; font-size: 1.2rem; font-weight: bold;">
+                ${getStrengthDescription(parseFloat(winPct))}
+            </p>
+        </div>
+        <div style="text-align: center; margin-top: 2rem; opacity: 0.7;">
+            <p>Win Rate: ${winPct}%</p>
+            <p style="font-size: 0.9rem; margin-top: 0.5rem;">vs ${data.num_opponents} opponent${data.num_opponents > 1 ? 's' : ''}</p>
+        </div>
+    `;
+}
+
+// Standard statistics - common metrics
+function getStandardStats(data) {
+    const winPct = (data.win_probability * 100).toFixed(1);
+    
+    return `
+        <div class="hand-strength" style="animation: fadeIn 0.3s ease-out">
+            <h4>💪 Hand Strength</h4>
+            <div class="strength-meter">
+                <div class="strength-fill" style="width: ${winPct}%; transition: width 1s ease-out;"></div>
+            </div>
+            <p style="margin-top: 0.5rem; opacity: 0.8; font-size: 0.9rem;">
+                ${getStrengthDescription(parseFloat(winPct))}
+            </p>
+        </div>
+        <div class="result-stats" style="margin-top: 1rem;">
+            <div class="stat-card" style="animation: slideUp 0.4s ease-out">
+                <h4>🎯 Win Rate</h4>
+                <div class="value" style="font-size: 1.5rem;">${winPct}%</div>
+            </div>
+        </div>
+        ${getHandCategoryBreakdown(data.hand_categories)}
+    `;
+}
+
+// Advanced statistics - detailed metrics
+function getAdvancedStats(data) {
     const winPct = (data.win_probability * 100).toFixed(1);
     const tiePct = (data.tie_probability * 100).toFixed(1);
     const lossPct = (data.loss_probability * 100).toFixed(1);
     
-    // Animate bars
-    setTimeout(() => {
-        winBar.style.width = winPct + '%';
-        winBar.innerHTML = `<span style="font-size: 0.9rem;">WIN</span><br>${winPct}%`;
-        
-        tieBar.style.width = tiePct + '%';
-        if (parseFloat(tiePct) > 5) {
-            tieBar.innerHTML = `<span style="font-size: 0.8rem;">TIE</span><br>${tiePct}%`;
-        }
-        
-        lossBar.style.width = lossPct + '%';
-        lossBar.innerHTML = `<span style="font-size: 0.9rem;">LOSS</span><br>${lossPct}%`;
-    }, 100);
-    
-    // Update details with enhanced visuals
-    details.innerHTML = `
+    return `
+        <div class="hand-strength" style="animation: fadeIn 0.3s ease-out">
+            <h4>💪 Hand Strength</h4>
+            <div class="strength-meter">
+                <div class="strength-fill" style="width: ${winPct}%; transition: width 1s ease-out;"></div>
+            </div>
+            <p style="margin-top: 0.5rem; opacity: 0.8; font-size: 0.9rem;">
+                ${getStrengthDescription(parseFloat(winPct))}
+            </p>
+        </div>
         <div class="result-stats">
             <div class="stat-card" style="animation: slideUp 0.3s ease-out">
                 <h4>🎯 Simulations</h4>
@@ -402,16 +683,271 @@ function updateResultsDisplay(suffix, data) {
                 <div class="value">±${((data.confidence_interval[1] - data.confidence_interval[0]) * 50).toFixed(1)}%</div>
             </div>
         </div>
-        <div class="hand-strength" style="animation: fadeIn 0.6s ease-out">
-            <h4>💪 Hand Strength</h4>
-            <div class="strength-meter">
-                <div class="strength-fill" style="width: ${winPct}%; transition: width 1s ease-out;"></div>
+        <div style="margin: 1rem 0; padding: 1rem; background: rgba(0,0,0,0.2); border-radius: 10px;">
+            <h4>📈 Probability Breakdown</h4>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-top: 0.5rem;">
+                <div style="text-align: center;">
+                    <div style="color: #4CAF50; font-size: 1.3rem; font-weight: bold;">${winPct}%</div>
+                    <div style="font-size: 0.8rem; opacity: 0.7;">Win</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="color: #FFC107; font-size: 1.3rem; font-weight: bold;">${tiePct}%</div>
+                    <div style="font-size: 0.8rem; opacity: 0.7;">Tie</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="color: #F44336; font-size: 1.3rem; font-weight: bold;">${lossPct}%</div>
+                    <div style="font-size: 0.8rem; opacity: 0.7;">Loss</div>
+                </div>
             </div>
-            <p style="margin-top: 0.5rem; opacity: 0.8; font-size: 0.9rem;">
-                ${getStrengthDescription(parseFloat(winPct))}
-            </p>
         </div>
         ${getHandCategoryBreakdown(data.hand_categories)}
+    `;
+}
+
+// Expert statistics - advanced poker metrics
+function getExpertStats(data) {
+    const winPct = (data.win_probability * 100).toFixed(1);
+    const equity = data.win_probability + (data.tie_probability * 0.5);
+    const potOdds = data.win_probability > 0 ? (1 / data.win_probability - 1).toFixed(2) : 'N/A';
+    
+    // Advanced features that might be available
+    const hasICM = data.icm_equity !== undefined && data.icm_equity !== null;
+    const hasPosition = data.position_aware_equity !== undefined && data.position_aware_equity !== null;
+    const hasMultiway = data.multi_way_statistics !== undefined && data.multi_way_statistics !== null;
+    const hasDefense = data.defense_frequencies !== undefined && data.defense_frequencies !== null;
+    
+    return `
+        <div style="font-size: 0.9rem;">
+            <h4 style="margin-bottom: 1rem;">🎯 Expert Analysis</h4>
+            
+            <div style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 10px; margin-bottom: 1rem;">
+                <h5 style="color: #FFD700; margin-bottom: 0.5rem;">Core Metrics</h5>
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem;">
+                    <div>Win Rate: <strong style="color: #4CAF50;">${winPct}%</strong></div>
+                    <div>Total Equity: <strong>${(equity * 100).toFixed(1)}%</strong>${createHelpIcon('Your overall share of the pot, including half of all tie scenarios')}</div>
+                    <div>Pot Odds Needed: <strong>1:${potOdds}</strong>${createHelpIcon('The minimum pot odds required to make calling profitable')}</div>
+                    <div>Opponents: <strong>${data.num_opponents}</strong></div>
+                </div>
+            </div>
+            
+            ${hasICM || hasPosition || hasMultiway || hasDefense || data.stack_to_pot_ratio || data.tournament_pressure || data.fold_equity_estimates ? `
+            <div style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 10px; margin-bottom: 1rem;">
+                <h5 style="color: #FFD700; margin-bottom: 1rem;">Advanced Strategic Adjustments</h5>
+                <div style="display: grid; gap: 0.8rem;">
+                    ${hasICM ? `<div style="display: grid; grid-template-columns: minmax(140px, 180px) 1fr; align-items: start; gap: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.03); border-radius: 6px;">
+                        <div style="font-weight: bold; color: #90CAF9;">Tournament Pressure${createHelpIcon('ICM (Independent Chip Model) adjusts equity based on tournament payout structure')}</div>
+                        <div style="line-height: 1.4;">${
+                            data.icm_equity < data.win_probability * 0.9 
+                                ? '🚨 High ICM pressure - tighten ranges significantly' 
+                                : data.icm_equity < data.win_probability * 0.95 
+                                    ? '⚠️ Moderate ICM pressure - avoid marginal spots'
+                                    : '✅ Low ICM pressure - play close to chip EV'
+                        }</div>
+                    </div>` : ''}
+                    ${data.tournament_pressure ? `<div style="display: grid; grid-template-columns: 180px 1fr; align-items: start; gap: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.03); border-radius: 6px;">
+                        <div style="font-weight: bold; color: #90CAF9;">Stack Dynamics${createHelpIcon('How your stack size affects optimal strategy')}</div>
+                        <div style="line-height: 1.4;">${
+                            data.tournament_pressure.stack_pressure > 0.8
+                                ? '📈 Big stack - apply maximum pressure, exploit ICM'
+                                : data.tournament_pressure.stack_pressure > 0.5
+                                    ? '⚖️ Average stack - balanced approach, pick spots carefully'
+                                    : '📉 Short stack - push/fold mode, maximize fold equity'
+                        }</div>
+                    </div>` : ''}
+                    ${hasPosition && typeof data.position_aware_equity === 'object' ? `<div style="display: grid; grid-template-columns: 180px 1fr; align-items: start; gap: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.03); border-radius: 6px;">
+                        <div style="font-weight: bold; color: #90CAF9;">Position Advantage${createHelpIcon('Your seating position relative to the dealer button affects optimal strategy')}</div>
+                        <div style="line-height: 1.4;">${
+                            state.heroPosition === 'button' || state.heroPosition === 'co' 
+                                ? '🎯 Late position - widen ranges, increase aggression'
+                                : state.heroPosition === 'sb' || state.heroPosition === 'bb'
+                                    ? '🛡️ Blinds - defend appropriately, use pot odds'
+                                    : '⚖️ Early/Middle - play straightforward, value heavy'
+                        }</div>
+                    </div>` : ''}
+                    ${data.fold_equity_estimates ? `<div style="display: grid; grid-template-columns: 180px 1fr; align-items: start; gap: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.03); border-radius: 6px;">
+                        <div style="font-weight: bold; color: #90CAF9;">Fold Equity${createHelpIcon('Likelihood of opponents folding to your bets')}</div>
+                        <div style="line-height: 1.4;">${
+                            data.fold_equity_estimates.position_modifier > 1.1
+                                ? '💪 High fold equity - increase bluff frequency'
+                                : data.fold_equity_estimates.position_modifier > 0.9
+                                    ? '⚖️ Standard fold equity - balanced betting'
+                                    : '⚠️ Low fold equity - value bet primarily'
+                        }</div>
+                    </div>` : ''}
+                    ${hasDefense && typeof data.defense_frequencies === 'object' ? `<div style="display: grid; grid-template-columns: 180px 1fr; align-items: start; gap: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.03); border-radius: 6px;">
+                        <div style="font-weight: bold; color: #90CAF9;">Defense Strategy${createHelpIcon('How often you should defend against bets based on opponent tendencies')}</div>
+                        <div style="line-height: 1.4;">${
+                            Object.values(data.defense_frequencies).some(v => v > 0.4)
+                                ? '🔴 Defend wide - opponent likely overbluffing'
+                                : Object.values(data.defense_frequencies).some(v => v > 0.3)
+                                    ? '🟡 Standard defense - balance value and bluffs'
+                                    : '🟢 Tight defense - opponent likely value heavy'
+                        }</div>
+                    </div>` : ''}
+                    ${data.stack_to_pot_ratio ? `<div style="display: grid; grid-template-columns: 180px 1fr; align-items: start; gap: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.03); border-radius: 6px;">
+                        <div style="font-weight: bold; color: #90CAF9;">SPR Strategy${createHelpIcon('Stack-to-Pot Ratio: effective stack size divided by pot size')}</div>
+                        <div style="line-height: 1.4;">${
+                            data.stack_to_pot_ratio < 4 
+                                ? '💥 Low SPR - commit with top pairs, draws lose value'
+                                : data.stack_to_pot_ratio < 10
+                                    ? '⚔️ Medium SPR - balanced strategy, all options open'
+                                    : '🏰 Deep SPR - implied odds matter, position crucial'
+                        }</div>
+                    </div>` : ''}
+                    ${hasMultiway && data.multi_way_statistics ? `<div style="display: grid; grid-template-columns: 180px 1fr; align-items: start; gap: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.03); border-radius: 6px;">
+                        <div style="font-weight: bold; color: #90CAF9;">Multi-way Dynamics${createHelpIcon('How to adjust strategy with multiple opponents')}</div>
+                        <div style="line-height: 1.4;">${
+                            data.num_opponents >= 4
+                                ? '🎯 Tighten significantly - nut hands dominate'
+                                : data.num_opponents === 3
+                                    ? '⚖️ Value-heavy approach - draws devalue'
+                                    : '📊 Standard adjustments - position crucial'
+                        }</div>
+                    </div>` : ''}
+                </div>
+            </div>
+            ` : ''}
+            
+            <div style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 10px; margin-bottom: 1rem;">
+                <h5 style="color: #FFD700; margin-bottom: 0.5rem;">Strategic Insights</h5>
+                <div style="display: grid; gap: 0.5rem;">
+                    <div>Hand Class: <strong style="color: ${equity > 0.6 ? '#4CAF50' : equity > 0.4 ? '#FFC107' : '#F44336'}">
+                        ${equity > 0.6 ? 'Premium' : equity > 0.5 ? 'Strong' : equity > 0.4 ? 'Marginal' : 'Weak'}
+                    </strong>${createHelpIcon('Classification based on your total equity against opponents')}</div>
+                    <div>Recommended Action: <strong>
+                        ${equity > 0.6 ? 'Bet/Raise' : equity > 0.5 ? 'Bet/Call' : equity > 0.4 ? 'Check/Call' : 'Check/Fold'}
+                    </strong>${createHelpIcon('Suggested action based on hand strength and game theory optimal play')}</div>
+                    <div>Bluff Frequency: <strong>
+                        ${data.num_opponents === 1 ? '~33%' : data.num_opponents === 2 ? '~20%' : '~10%'}
+                    </strong>${createHelpIcon('Optimal bluffing frequency based on game theory and number of opponents')}</div>
+                    ${data.bluff_catching_frequency !== undefined && data.bluff_catching_frequency !== null ? `<div>Bluff Catching: <strong>
+                        ${data.bluff_catching_frequency > 0.4 ? 'Call liberally' : data.bluff_catching_frequency > 0.25 ? 'Call selectively' : 'Fold often'}
+                    </strong>${createHelpIcon('How often you should call potential bluffs based on pot odds and opponent tendencies')}</div>` : ''}
+                </div>
+            </div>
+            
+            ${getHandCategoryBreakdown(data.hand_categories)}
+            
+            ${!state.tournamentMode ? `
+            <div style="margin-top: 1rem; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 5px; font-size: 0.8rem; opacity: 0.7;">
+                <strong>Note:</strong> Enable Tournament Mode to unlock position-aware equity and ICM calculations.
+            </div>
+            ` : (!hasICM && !hasPosition && !data.stack_to_pot_ratio) ? `
+            <div style="margin-top: 1rem; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 5px; font-size: 0.8rem; opacity: 0.7;">
+                <strong>Note:</strong> Advanced tournament features (ICM, position-aware equity) may not be available in the current poker_knight version. SPR calculations are shown when available.
+            </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+// Mathematician statistics - all the numbers
+function getMathematicianStats(data) {
+    const winPct = (data.win_probability * 100).toFixed(6);
+    const tiePct = (data.tie_probability * 100).toFixed(6);
+    const lossPct = (data.loss_probability * 100).toFixed(6);
+    const equity = data.win_probability + (data.tie_probability * 0.5);
+    const potOdds = data.win_probability > 0 ? (1 / data.win_probability - 1).toFixed(6) : 'N/A';
+    const ev = equity > 0.5 ? '+EV' : equity < 0.5 ? '-EV' : 'Neutral';
+    
+    // Get ALL data keys for complete dump
+    const allDataKeys = Object.keys(data).sort();
+    
+    return `
+        <div style="font-size: 0.85rem;">
+            <h4 style="margin-bottom: 1rem;">📐 Complete Data Dump - All Available Statistics</h4>
+            
+            <div style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 10px; margin-bottom: 1rem;">
+                <h5 style="color: #FFD700; margin-bottom: 0.5rem;">Core Probabilities (Maximum Precision)</h5>
+                <div style="display: grid; gap: 0.5rem; font-family: monospace;">
+                    <div>win_probability: <strong>${data.win_probability}</strong> (${winPct}%)</div>
+                    <div>tie_probability: <strong>${data.tie_probability}</strong> (${tiePct}%)</div>
+                    <div>loss_probability: <strong>${data.loss_probability}</strong> (${lossPct}%)</div>
+                    <div>total_equity: <strong>${equity}</strong> (${(equity * 100).toFixed(6)}%)</div>
+                </div>
+            </div>
+            
+            <div style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 10px; margin-bottom: 1rem;">
+                <h5 style="color: #FFD700; margin-bottom: 0.5rem;">Simulation Metadata</h5>
+                <div style="display: grid; gap: 0.5rem; font-family: monospace;">
+                    <div>simulations_run: <strong>${data.simulations_run}</strong></div>
+                    <div>execution_time_ms: <strong>${data.execution_time_ms}</strong></div>
+                    <div>simulations_per_second: <strong>${Math.round(data.simulations_run / (data.execution_time_ms / 1000))}</strong></div>
+                    <div>confidence_interval: <strong>[${data.confidence_interval[0]}, ${data.confidence_interval[1]}]</strong></div>
+                    <div>margin_of_error: <strong>±${(data.confidence_interval[1] - data.confidence_interval[0]) / 2}</strong></div>
+                    <div>simulation_mode: <strong>${data.simulation_mode || 'default'}</strong></div>
+                </div>
+            </div>
+            
+            <div style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 10px; margin-bottom: 1rem;">
+                <h5 style="color: #FFD700; margin-bottom: 0.5rem;">Input Parameters</h5>
+                <div style="display: grid; gap: 0.5rem; font-family: monospace;">
+                    <div>hero_hand: <strong>${JSON.stringify(data.hero_hand)}</strong></div>
+                    <div>board_cards: <strong>${JSON.stringify(data.board_cards)}</strong></div>
+                    <div>num_opponents: <strong>${data.num_opponents}</strong></div>
+                </div>
+            </div>
+            
+            <div style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 10px; margin-bottom: 1rem;">
+                <h5 style="color: #FFD700; margin-bottom: 0.5rem;">Derived Metrics</h5>
+                <div style="display: grid; gap: 0.5rem; font-family: monospace;">
+                    <div>pot_odds_required: <strong>1:${potOdds}</strong></div>
+                    <div>break_even_percentage: <strong>${data.win_probability > 0 ? (100 / (1 + parseFloat(potOdds))).toFixed(6) : 'N/A'}%</strong></div>
+                    <div>expected_value_indicator: <strong>${ev}</strong></div>
+                    <div>information_ratio: <strong>${(1 - (data.confidence_interval[1] - data.confidence_interval[0])).toFixed(6)}</strong></div>
+                    <div>relative_hand_strength: <strong>${(equity / (1 / (data.num_opponents + 1))).toFixed(6)}</strong></div>
+                </div>
+            </div>
+            
+            ${data.hand_categories ? `
+            <div style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 10px; margin-bottom: 1rem;">
+                <h5 style="color: #FFD700; margin-bottom: 0.5rem;">Complete Hand Category Distribution</h5>
+                <div style="display: grid; gap: 0.3rem; font-family: monospace; font-size: 0.8rem;">
+                    ${Object.entries(data.hand_categories)
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([category, freq]) => `
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>${category}:</span>
+                                <span><strong>${freq}</strong> (${(freq * 100).toFixed(6)}%)</span>
+                            </div>
+                        `).join('')}
+                </div>
+            </div>
+            ` : ''}
+            
+            ${data.position_aware_equity || data.icm_equity || data.multi_way_statistics || data.defense_frequencies || data.coordination_effects || data.stack_to_pot_ratio || data.tournament_pressure || data.fold_equity_estimates || data.bubble_factor || data.bluff_catching_frequency ? `
+            <div style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 10px; margin-bottom: 1rem;">
+                <h5 style="color: #FFD700; margin-bottom: 0.5rem;">Tournament & Advanced Features</h5>
+                <div style="display: grid; gap: 0.5rem; font-family: monospace; font-size: 0.8rem;">
+                    ${data.icm_equity !== undefined && data.icm_equity !== null ? `<div>icm_equity: <strong>${data.icm_equity}</strong></div>` : ''}
+                    ${data.position_aware_equity ? `<div>position_aware_equity: <strong>${JSON.stringify(data.position_aware_equity, null, 2)}</strong></div>` : ''}
+                    ${data.stack_to_pot_ratio !== undefined && data.stack_to_pot_ratio !== null ? `<div>stack_to_pot_ratio: <strong>${data.stack_to_pot_ratio}</strong></div>` : ''}
+                    ${data.tournament_pressure ? `<div>tournament_pressure: <strong>${JSON.stringify(data.tournament_pressure, null, 2)}</strong></div>` : ''}
+                    ${data.fold_equity_estimates ? `<div>fold_equity_estimates: <strong>${JSON.stringify(data.fold_equity_estimates, null, 2)}</strong></div>` : ''}
+                    ${data.bubble_factor !== undefined && data.bubble_factor !== null ? `<div>bubble_factor: <strong>${data.bubble_factor}</strong></div>` : ''}
+                    ${data.bluff_catching_frequency !== undefined && data.bluff_catching_frequency !== null ? `<div>bluff_catching_frequency: <strong>${data.bluff_catching_frequency}</strong></div>` : ''}
+                    ${data.multi_way_statistics ? `<div>multi_way_statistics: <strong>${JSON.stringify(data.multi_way_statistics, null, 2)}</strong></div>` : ''}
+                    ${data.defense_frequencies ? `<div>defense_frequencies: <strong>${JSON.stringify(data.defense_frequencies, null, 2)}</strong></div>` : ''}
+                    ${data.coordination_effects ? `<div>coordination_effects: <strong>${JSON.stringify(data.coordination_effects, null, 2)}</strong></div>` : ''}
+                </div>
+            </div>
+            ` : ''}
+            
+            <div style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 10px; margin-bottom: 1rem;">
+                <h5 style="color: #FFD700; margin-bottom: 0.5rem;">Raw API Response (All Fields)</h5>
+                <div style="font-family: monospace; font-size: 0.75rem; max-height: 300px; overflow-y: auto;">
+                    ${allDataKeys.map(key => {
+                        const value = data[key];
+                        const displayValue = typeof value === 'object' ? JSON.stringify(value, null, 2) : value;
+                        return `<div style="margin-bottom: 0.5rem;"><strong>${key}:</strong> ${displayValue}</div>`;
+                    }).join('')}
+                </div>
+            </div>
+            
+            <div style="margin-top: 1rem; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 5px; font-size: 0.8rem; opacity: 0.7;">
+                <strong>Note:</strong> This view shows ALL data returned by the poker_knight API, including internal fields and metadata.
+            </div>
+        </div>
     `;
 }
 
@@ -425,6 +961,13 @@ function getStrengthDescription(winPct) {
     return "🚫 Very weak position";
 }
 
+// Create help icon with tooltip
+function createHelpIcon(tooltipText) {
+    // Generate unique ID for this tooltip
+    const tooltipId = 'tooltip-' + Math.random().toString(36).substr(2, 9);
+    return `<span class="help-icon" data-tooltip-id="${tooltipId}" data-tooltip-text="${tooltipText.replace(/"/g, '&quot;')}" onclick="event.stopPropagation()">?</span>`;
+}
+
 // Get hand category breakdown
 function getHandCategoryBreakdown(categories) {
     if (!categories) return '';
@@ -436,16 +979,129 @@ function getHandCategoryBreakdown(categories) {
     
     if (topCategories.length === 0) return '';
     
+    // Generate unique canvas ID
+    const canvasId = 'handChart' + Math.random().toString(36).substr(2, 9);
+    
+    // Prepare data for chart
+    const labels = topCategories.map(([category]) => formatHandCategory(category));
+    const data = topCategories.map(([_, freq]) => (freq * 100).toFixed(1));
+    
+    // Create chart after DOM updates
+    setTimeout(() => {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+        
+        const ctx = canvas.getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: data,
+                    backgroundColor: [
+                        'rgba(76, 175, 80, 0.7)',
+                        'rgba(139, 195, 74, 0.7)',
+                        'rgba(255, 193, 7, 0.7)',
+                        'rgba(255, 152, 0, 0.7)',
+                        'rgba(244, 67, 54, 0.7)'
+                    ],
+                    borderColor: [
+                        'rgba(76, 175, 80, 1)',
+                        'rgba(139, 195, 74, 1)',
+                        'rgba(255, 193, 7, 1)',
+                        'rgba(255, 152, 0, 1)',
+                        'rgba(244, 67, 54, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.parsed.x + '%';
+                            }
+                        }
+                    },
+                    datalabels: {
+                        anchor: 'end',
+                        align: 'end',
+                        color: 'white',
+                        font: {
+                            weight: 'bold',
+                            size: 12
+                        },
+                        formatter: function(value) {
+                            return value + '%';
+                        },
+                        offset: 4
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        max: Math.max(...data.map(d => parseFloat(d))) * 1.2,
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.7)',
+                            callback: function(value) {
+                                return value + '%';
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        }
+                    },
+                    y: {
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.9)',
+                            font: {
+                                size: 13
+                            }
+                        },
+                        grid: {
+                            display: false
+                        }
+                    }
+                },
+                animation: {
+                    duration: 1000,
+                    delay: (context) => context.dataIndex * 100,
+                    onComplete: function() {
+                        // Draw value labels on bars after animation completes
+                        const chart = this;
+                        const ctx = chart.ctx;
+                        ctx.font = 'bold 12px sans-serif';
+                        ctx.fillStyle = 'white';
+                        ctx.textAlign = 'left';
+                        ctx.textBaseline = 'middle';
+                        
+                        chart.data.datasets.forEach((dataset, i) => {
+                            const meta = chart.getDatasetMeta(i);
+                            meta.data.forEach((bar, index) => {
+                                const data = dataset.data[index];
+                                const x = bar.x + 5;
+                                const y = bar.y;
+                                ctx.fillText(data + '%', x, y);
+                            });
+                        });
+                    }
+                }
+            }
+        });
+    }, 100);
+    
     return `
         <div class="hand-categories" style="margin-top: 1rem; animation: fadeIn 0.7s ease-out;">
             <h4>🃏 Likely Outcomes</h4>
-            <div style="margin-top: 0.5rem;">
-                ${topCategories.map(([category, freq], i) => `
-                    <div style="display: flex; justify-content: space-between; padding: 0.3rem 0; opacity: ${1 - i * 0.15};">
-                        <span>${formatHandCategory(category)}</span>
-                        <span style="font-weight: bold;">${(freq * 100).toFixed(1)}%</span>
-                    </div>
-                `).join('')}
+            <div style="position: relative; height: ${topCategories.length * 50 + 20}px; margin-top: 0.5rem;">
+                <canvas id="${canvasId}"></canvas>
             </div>
         </div>
     `;
@@ -494,6 +1150,16 @@ function clearAll() {
         // Hide results
         document.getElementById('resultsPanel').classList.remove('active');
         document.getElementById('mobileResults').style.display = 'none';
+        
+        // Destroy charts if they exist
+        if (state.probabilityChart) {
+            state.probabilityChart.destroy();
+            state.probabilityChart = null;
+        }
+        if (state.probabilityChartMobile) {
+            state.probabilityChartMobile.destroy();
+            state.probabilityChartMobile = null;
+        }
         
         // Reset card styles
         document.querySelectorAll('.card').forEach(card => {
@@ -835,7 +1501,7 @@ function showGameVisualization(item) {
         heroCardsDiv.appendChild(cardEl);
     });
     
-    // Create board cards
+    // Create board cards only if they exist
     if (item.boardCards && item.boardCards.length > 0) {
         item.boardCards.forEach((card, index) => {
             const cardEl = createPokerCard(card);
@@ -843,6 +1509,7 @@ function showGameVisualization(item) {
             tableCardsDiv.appendChild(cardEl);
         });
     }
+    // For pre-flop, the table center remains empty
     
     // Update game info
     const winPct = (item.winProbability * 100).toFixed(1);
@@ -910,6 +1577,252 @@ function getResultColor(winProb) {
     if (winProb < 0.45) return '#F44336';
     return '#FFC107';
 }
+
+// Switch statistics level
+function switchStatsLevel(suffix, level) {
+    // Update current level
+    state.currentStatsLevel = level;
+    
+    // Save preference
+    localStorage.setItem('statsLevel', level);
+    
+    // Update content if we have data
+    if (state.lastCalculationData) {
+        updateStatsContent(suffix, state.lastCalculationData, level);
+    }
+}
+
+// Update stack inputs based on number of opponents
+function updateStackInputs() {
+    const container = document.getElementById('stackInputs');
+    const heroInput = container.querySelector('#heroStack').parentElement;
+    
+    // Clear existing opponent inputs
+    container.querySelectorAll('.opponent-stack').forEach(el => el.remove());
+    
+    // Add inputs for each opponent
+    for (let i = 1; i <= state.numOpponents; i++) {
+        const stackDiv = document.createElement('div');
+        stackDiv.className = 'stack-input opponent-stack';
+        stackDiv.innerHTML = `
+            <label>Opp ${i}</label>
+            <input type="number" placeholder="100" min="1" value="${state.stackSizes[i] || 100}" data-index="${i}">
+        `;
+        
+        const input = stackDiv.querySelector('input');
+        input.addEventListener('input', (e) => {
+            const value = parseInt(e.target.value) || 100;
+            const index = parseInt(e.target.dataset.index);
+            state.stackSizes[index] = value;
+            localStorage.setItem('stackSizes', JSON.stringify(state.stackSizes));
+        });
+        
+        container.appendChild(stackDiv);
+    }
+    
+    // Trim stack sizes array
+    state.stackSizes = state.stackSizes.slice(0, state.numOpponents + 1);
+    
+    // Fill with defaults if needed
+    while (state.stackSizes.length < state.numOpponents + 1) {
+        state.stackSizes.push(100);
+    }
+}
+
+// Show position help modal
+function showPositionHelp() {
+    document.getElementById('positionHelpModal').classList.add('active');
+}
+
+// Hide position help modal
+function hidePositionHelp() {
+    document.getElementById('positionHelpModal').classList.remove('active');
+}
+
+// Setup help icon interactions for mobile
+function setupHelpIconInteractions() {
+    let currentTooltip = null;
+    
+    // Create tooltip element
+    const tooltip = document.createElement('div');
+    tooltip.className = 'help-tooltip';
+    tooltip.style.display = 'none';
+    document.body.appendChild(tooltip);
+    
+    // Mouse enter - show tooltip
+    document.addEventListener('mouseenter', (e) => {
+        const helpIcon = e.target.closest('.help-icon');
+        if (helpIcon && window.innerWidth > 768) {
+            const text = helpIcon.getAttribute('data-tooltip-text');
+            if (text) {
+                tooltip.innerHTML = text;
+                tooltip.style.display = 'block';
+                tooltip.style.opacity = '0';
+                tooltip.style.visibility = 'hidden';
+                
+                // Position tooltip
+                const rect = helpIcon.getBoundingClientRect();
+                tooltip.style.opacity = '0';
+                tooltip.style.visibility = 'visible';
+                const tooltipRect = tooltip.getBoundingClientRect();
+                tooltip.style.visibility = 'hidden';
+                
+                // For Core Metrics section, always show tooltip to the left or right
+                const isInCoreMetrics = helpIcon.closest('div').textContent.includes('Total Equity') || 
+                                       helpIcon.closest('div').textContent.includes('Pot Odds Needed');
+                
+                let top, left;
+                
+                if (isInCoreMetrics) {
+                    // Position to the left of the icon
+                    top = rect.top + (rect.height / 2) - (tooltipRect.height / 2);
+                    left = rect.left - tooltipRect.width - 10;
+                    
+                    // If it would go off left edge, show to the right instead
+                    if (left < 10) {
+                        left = rect.right + 10;
+                    }
+                } else {
+                    // Default positioning - try above first
+                    top = rect.top - tooltipRect.height - 8;
+                    left = rect.left + (rect.width / 2) - (tooltipRect.width / 2);
+                    
+                    // If tooltip would go off top of screen, show below
+                    if (top < 10) {
+                        top = rect.bottom + 8;
+                    }
+                }
+                
+                // Keep tooltip on screen
+                if (left < 10) {
+                    left = 10;
+                } else if (left + tooltipRect.width > window.innerWidth - 10) {
+                    left = window.innerWidth - tooltipRect.width - 10;
+                }
+                
+                if (top < 10) {
+                    top = 10;
+                } else if (top + tooltipRect.height > window.innerHeight - 10) {
+                    top = window.innerHeight - tooltipRect.height - 10;
+                }
+                
+                tooltip.style.top = top + 'px';
+                tooltip.style.left = left + 'px';
+                
+                // Fade in
+                setTimeout(() => {
+                    tooltip.style.opacity = '1';
+                    tooltip.style.visibility = 'visible';
+                }, 10);
+                
+                currentTooltip = helpIcon;
+            }
+        }
+    }, true);
+    
+    // Mouse leave - hide tooltip
+    document.addEventListener('mouseleave', (e) => {
+        const helpIcon = e.target.closest('.help-icon');
+        if (helpIcon && helpIcon === currentTooltip) {
+            tooltip.style.opacity = '0';
+            tooltip.style.visibility = 'hidden';
+            setTimeout(() => {
+                tooltip.style.display = 'none';
+            }, 200);
+            currentTooltip = null;
+        }
+    }, true);
+    
+    // Handle mobile taps
+    document.addEventListener('click', (e) => {
+        const helpIcon = e.target.closest('.help-icon');
+        if (helpIcon && window.innerWidth <= 768) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const text = helpIcon.getAttribute('data-tooltip-text');
+            if (text) {
+                // For mobile, show centered
+                tooltip.innerHTML = text;
+                tooltip.style.display = 'block';
+                tooltip.style.position = 'fixed';
+                tooltip.style.top = '50%';
+                tooltip.style.left = '50%';
+                tooltip.style.transform = 'translate(-50%, -50%)';
+                tooltip.style.opacity = '1';
+                tooltip.style.visibility = 'visible';
+                tooltip.style.maxWidth = '90vw';
+                
+                // Hide on next tap anywhere
+                setTimeout(() => {
+                    document.addEventListener('click', hideTooltip, { once: true });
+                }, 100);
+            }
+        }
+    });
+    
+    function hideTooltip() {
+        tooltip.style.opacity = '0';
+        tooltip.style.visibility = 'hidden';
+        setTimeout(() => {
+            tooltip.style.display = 'none';
+            tooltip.style.transform = '';
+        }, 200);
+    }
+}
+
+// Cache status monitoring
+let cacheStatusInterval = null;
+
+function startCacheStatusMonitoring() {
+    // Check cache status immediately
+    checkCacheStatus();
+    
+    // Then check every 2 seconds
+    cacheStatusInterval = setInterval(checkCacheStatus, 2000);
+}
+
+async function checkCacheStatus() {
+    try {
+        const response = await fetch('/api/cache-status');
+        const data = await response.json();
+        
+        const cacheStatusEl = document.getElementById('cacheStatus');
+        const cacheCountEl = document.getElementById('cacheCount');
+        const cacheRateEl = document.getElementById('cacheRate');
+        
+        if (data.is_warming) {
+            // Show the indicator
+            cacheStatusEl.style.display = 'flex';
+            cacheCountEl.textContent = data.total_cached.toLocaleString();
+            // Convert rate per second to rate per minute
+            const ratePerMinute = data.rate_per_second * 60;
+            cacheRateEl.textContent = ratePerMinute.toFixed(0);
+        } else {
+            // Hide the indicator with fade out
+            if (cacheStatusEl.style.display === 'flex') {
+                cacheStatusEl.style.animation = 'slideOutRight 0.3s ease-out';
+                setTimeout(() => {
+                    cacheStatusEl.style.display = 'none';
+                    cacheStatusEl.style.animation = '';
+                }, 300);
+                
+                // Stop checking once warming is complete
+                if (cacheStatusInterval) {
+                    clearInterval(cacheStatusInterval);
+                    cacheStatusInterval = null;
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Failed to check cache status:', error);
+    }
+}
+
+// Make functions globally available
+window.switchStatsLevel = switchStatsLevel;
+window.showPositionHelp = showPositionHelp;
+window.hidePositionHelp = hidePositionHelp;
 
 // Add CSS animations
 const style = document.createElement('style');

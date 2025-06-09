@@ -31,3 +31,7 @@ results/
 *.log
 .DS_Store
 poker_knight/
+
+# Cache files
+poker_cache.db
+poker_cache.db-journal

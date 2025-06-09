@@ -7,9 +7,18 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
+import asyncio
+import logging
 
-from src.camelot.api.calculator import router as api_router
+from src.camelot.api.calculator import router as api_router, calculator
+from src.camelot.api import calculator as calc_module
 from src.camelot.web.routes import router as web_router
+from src.camelot.core.cache_manager import CacheManager
+import config
+
+# Configure logging
+logging.basicConfig(level=getattr(logging, config.LOG_LEVEL))
+logger = logging.getLogger(__name__)
 
 # Create FastAPI app
 app = FastAPI(
@@ -42,8 +51,31 @@ app.include_router(web_router)
 async def startup_event():
     """Initialize application on startup."""
     print("🏰 Camelot is starting up...")
+    
+    if config.ENABLE_CACHE:
+        # Initialize cache manager
+        cache_manager = CacheManager(calculator)
+        calc_module.cache_manager = cache_manager  # Set reference for API endpoint
+        
+        # Start cache warming in background - don't await!
+        asyncio.create_task(initialize_cache_background(cache_manager))
+        print("📊 Cache warming started in background")
+    else:
+        print("💾 Cache disabled")
+    
     print("🃏 Poker Knight module ready for calculations")
     print("📡 API docs available at /api/docs")
+
+
+async def initialize_cache_background(cache_manager):
+    """Initialize cache in the background without blocking startup."""
+    try:
+        cache_stats = await cache_manager.initialize_cache(full_preload=config.FULL_PRELOAD)
+        logger.info(f"📊 Cache initialized: {cache_stats.get('scenarios_cached', 0)} scenarios cached in {cache_stats['startup_time']:.1f}s")
+        if cache_stats['background_tasks'] > 0:
+            logger.info(f"🔄 Background caching in progress ({cache_stats['background_tasks']} tasks)...")
+    except Exception as e:
+        logger.error(f"❌ Cache initialization failed: {e}")
 
 
 @app.on_event("shutdown")
@@ -58,8 +90,10 @@ if __name__ == "__main__":
     # Run with hot reload for development
     uvicorn.run(
         "main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
-        log_level="info"
+        host=config.HOST,
+        port=config.PORT,
+        reload=config.RELOAD,
+        log_level=config.LOG_LEVEL.lower(),
+        # Exclude cache files from file watcher
+        reload_excludes=["*.db", "*.db-journal", "*_cache*", "*.log"]
     )

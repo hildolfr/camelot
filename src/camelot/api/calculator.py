@@ -1,14 +1,16 @@
 """Calculator API endpoints."""
 
 from fastapi import APIRouter, HTTPException
-from typing import Dict
+from typing import Dict, Optional
 
 from ..core.poker_logic import PokerCalculator
+from ..core.cache_manager import CacheManager
 from .models import CalculateRequest, CalculateResponse, HealthResponse
 
 
 router = APIRouter(prefix="/api", tags=["calculator"])
 calculator = PokerCalculator()
+cache_manager: Optional[CacheManager] = None
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -37,11 +39,19 @@ async def calculate_poker_odds(request: CalculateRequest) -> Dict:
     then returns win/tie/loss probabilities along with detailed statistics.
     """
     try:
-        result = calculator.calculate(
-            hero_hand=request.hero_hand,
-            num_opponents=request.num_opponents,
-            board_cards=request.board_cards,
-            simulation_mode=request.simulation_mode
+        # Run calculation in dedicated user thread pool to avoid cache warming interference
+        import asyncio
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            calculator._user_executor,
+            calculator.calculate,
+            request.hero_hand,
+            request.num_opponents,
+            request.board_cards,
+            request.simulation_mode,
+            request.hero_position,
+            request.stack_sizes,
+            request.pot_size
         )
         
         # Build response with all available fields
@@ -62,7 +72,9 @@ async def calculate_poker_odds(request: CalculateRequest) -> Dict:
         
         # Add any advanced features if present
         for key in ["position_aware_equity", "icm_equity", "multi_way_statistics", 
-                    "defense_frequencies", "coordination_effects"]:
+                    "defense_frequencies", "coordination_effects", "stack_to_pot_ratio",
+                    "tournament_pressure", "fold_equity_estimates", "bubble_factor",
+                    "bluff_catching_frequency"]:
             if key in result:
                 response_data[key] = result[key]
         
@@ -88,3 +100,32 @@ async def calculate_poker_odds(request: CalculateRequest) -> Dict:
     except Exception as e:
         # Unexpected errors
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+@router.get("/cache-status")
+async def get_cache_status() -> Dict:
+    """Get current cache statistics."""
+    if cache_manager:
+        stats = cache_manager.get_cache_stats()
+        total_cached = stats.get('preflop_cached', 0) + stats.get('board_cached', 0)
+        
+        # Calculate rate based on new additions this session
+        elapsed = stats.get('elapsed_time', 0)
+        new_cached = stats.get('new_cached', 0)
+        rate = new_cached / elapsed if elapsed > 0 else 0
+        
+        return {
+            "status": "active",
+            "is_warming": cache_manager.is_warming(),
+            "total_cached": total_cached,
+            "rate_per_second": round(rate, 1),
+            "statistics": stats
+        }
+    else:
+        return {
+            "status": "not_initialized",
+            "is_warming": False,
+            "total_cached": 0,
+            "rate_per_second": 0,
+            "statistics": {}
+        }

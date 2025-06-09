@@ -10,6 +10,9 @@ class CalculateRequest(BaseModel):
     num_opponents: int = Field(..., description="Number of opponents", ge=1, le=6)
     board_cards: Optional[List[str]] = Field(None, description="Community cards (3-5 cards)", min_length=3, max_length=5)
     simulation_mode: str = Field("default", description="Simulation mode: fast, default, or precision")
+    hero_position: Optional[str] = Field(None, description="Hero's position: button, sb, bb, utg, utg+1, mp, mp+1, co")
+    stack_sizes: Optional[List[int]] = Field(None, description="Stack sizes in big blinds [hero, opp1, opp2, ...]")
+    pot_size: Optional[int] = Field(None, description="Current pot size in big blinds")
     
     @field_validator('hero_hand', 'board_cards')
     @classmethod
@@ -68,6 +71,11 @@ class CalculateResponse(BaseModel):
     multi_way_statistics: Optional[Dict[str, Any]] = Field(None, description="Statistics for multi-way pots")
     defense_frequencies: Optional[Dict[str, float]] = Field(None, description="Optimal defense frequencies")
     coordination_effects: Optional[Dict[str, float]] = Field(None, description="Board/range coordination effects")
+    stack_to_pot_ratio: Optional[float] = Field(None, description="Stack-to-Pot Ratio for tournament play")
+    tournament_pressure: Optional[Dict[str, float]] = Field(None, description="Tournament pressure metrics")
+    fold_equity_estimates: Optional[Dict[str, float]] = Field(None, description="Position-based fold equity estimates")
+    bubble_factor: Optional[float] = Field(None, description="ICM bubble factor adjustments")
+    bluff_catching_frequency: Optional[float] = Field(None, description="Optimal bluff-catching frequency")
     
     model_config = {
         "json_schema_extra": {

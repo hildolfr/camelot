@@ -187,3 +187,45 @@
     0% { background-color: rgba(76, 175, 80, 0.3); }
     100% { background-color: transparent; }
 }
+
+/* Help icons and tooltips */
+.help-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    margin-left: 0.3rem;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    font-size: 0.7rem;
+    cursor: help;
+    position: relative;
+    vertical-align: middle;
+    transition: all 0.2s ease;
+}
+
+.help-icon:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: scale(1.1);
+}
+
+.help-tooltip {
+    position: fixed;
+    background: rgba(0, 0, 0, 0.95);
+    color: white;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s ease;
+    pointer-events: none;
+    z-index: 10000;
+    max-width: 250px;
+    white-space: normal;
+    line-height: 1.4;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* Remove tooltip arrow since we're using dynamic positioning */

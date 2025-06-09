@@ -81,6 +81,30 @@ class ResultAdapter:
             if isinstance(ce, dict):
                 adapted["coordination_effects"] = ce
         
+        # Stack-to-Pot Ratio
+        if hasattr(result, 'stack_to_pot_ratio'):
+            adapted["stack_to_pot_ratio"] = getattr(result, 'stack_to_pot_ratio')
+        
+        # Tournament pressure
+        if hasattr(result, 'tournament_pressure'):
+            tp = getattr(result, 'tournament_pressure')
+            if isinstance(tp, dict):
+                adapted["tournament_pressure"] = tp
+        
+        # Fold equity estimates
+        if hasattr(result, 'fold_equity_estimates'):
+            fee = getattr(result, 'fold_equity_estimates')
+            if isinstance(fee, dict):
+                adapted["fold_equity_estimates"] = fee
+        
+        # Bubble factor
+        if hasattr(result, 'bubble_factor'):
+            adapted["bubble_factor"] = getattr(result, 'bubble_factor')
+        
+        # Bluff catching frequency
+        if hasattr(result, 'bluff_catching_frequency'):
+            adapted["bluff_catching_frequency"] = getattr(result, 'bluff_catching_frequency')
+        
         return adapted
     
     @staticmethod

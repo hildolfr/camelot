@@ -7,12 +7,43 @@ from typing import List, Dict, Optional, Tuple
 from poker_knight.solver import solve_poker_hand
 from .result_adapter import ResultAdapter
 
+# Try to import poker_knight's cache configuration
+try:
+    from poker_knight.storage.unified_cache import get_unified_cache
+    from poker_knight.storage.startup_prepopulation import populate_preflop_on_startup
+    
+    # Enable poker_knight's built-in caching with SQLite persistence
+    # Store cache in /tmp to avoid triggering file watchers
+    import os
+    cache_dir = os.path.expanduser("~/.camelot_cache")
+    os.makedirs(cache_dir, exist_ok=True)
+    
+    cache = get_unified_cache(
+        enable_persistence=True,
+        sqlite_path=os.path.join(cache_dir, "poker_cache.db"),
+        max_memory_mb=128  # Allow up to 128MB of memory cache
+    )
+    print("✅ Poker Knight unified cache enabled with persistence")
+except ImportError:
+    print("⚠️ Poker Knight unified cache not available, using basic caching")
+    cache = None
+
 
 class PokerCalculator:
     """Handles poker hand calculations using the poker_knight module."""
     
     VALID_RANKS = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2']
     VALID_SUITS = ['♠', '♥', '♦', '♣']
+    
+    def __init__(self):
+        """Initialize the calculator."""
+        # Create a dedicated thread pool for user requests
+        # This ensures cache warming doesn't block user calculations
+        from concurrent.futures import ThreadPoolExecutor
+        self._user_executor = ThreadPoolExecutor(
+            max_workers=4,  # Dedicated threads for user requests
+            thread_name_prefix="user_calc"
+        )
     
     @staticmethod
     def validate_card(card: str) -> bool:
@@ -64,7 +95,10 @@ class PokerCalculator:
         hero_hand: List[str],
         num_opponents: int,
         board_cards: Optional[List[str]] = None,
-        simulation_mode: str = "default"
+        simulation_mode: str = "default",
+        hero_position: Optional[str] = None,
+        stack_sizes: Optional[List[int]] = None,
+        pot_size: Optional[int] = None
     ) -> Dict:
         """
         Calculate poker hand probabilities.
@@ -92,13 +126,27 @@ class PokerCalculator:
         if simulation_mode not in ["fast", "default", "precision"]:
             raise ValueError("Simulation mode must be 'fast', 'default', or 'precision'")
         
+        # Build kwargs for optional parameters
+        kwargs = {
+            'simulation_mode': simulation_mode
+        }
+        
+        if hero_position:
+            kwargs['hero_position'] = hero_position
+            
+        if stack_sizes:
+            kwargs['stack_sizes'] = stack_sizes
+            
+        if pot_size is not None:
+            kwargs['pot_size'] = pot_size
+        
         # Call poker_knight
         try:
             result = solve_poker_hand(
                 hero_hand,
                 num_opponents,
                 board_cards,
-                simulation_mode=simulation_mode
+                **kwargs
             )
             
             # Use ResultAdapter to normalize the result
