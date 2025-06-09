@@ -100,13 +100,22 @@ class PokerCalculator:
                 simulation_mode=simulation_mode
             )
             
+            # Handle confidence_interval which might be a dict or tuple
+            confidence_interval = result.confidence_interval
+            if isinstance(confidence_interval, dict):
+                # Convert dict with 'low' and 'high' keys to tuple
+                confidence_interval = (confidence_interval.get('low', 0), confidence_interval.get('high', 1))
+            elif not isinstance(confidence_interval, tuple):
+                # Fallback for unexpected types
+                confidence_interval = (0, 1)
+            
             return {
                 "win_probability": result.win_probability,
                 "tie_probability": result.tie_probability,
                 "loss_probability": result.loss_probability,
                 "simulations_run": result.simulations_run,
                 "execution_time_ms": result.execution_time_ms,
-                "confidence_interval": result.confidence_interval,
+                "confidence_interval": confidence_interval,
                 "hand_categories": result.hand_category_frequencies,
                 "hero_hand": hero_hand,
                 "board_cards": board_cards or [],
