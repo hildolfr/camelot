@@ -44,20 +44,29 @@ async def calculate_poker_odds(request: CalculateRequest) -> Dict:
             simulation_mode=request.simulation_mode
         )
         
-        return {
+        # Build response with all available fields
+        response_data = {
             "success": True,
-            "win_probability": result["win_probability"],
-            "tie_probability": result["tie_probability"],
-            "loss_probability": result["loss_probability"],
-            "simulations_run": result["simulations_run"],
-            "execution_time_ms": result["execution_time_ms"],
-            "confidence_interval": result["confidence_interval"],
-            "hand_categories": result["hand_categories"],
-            "hero_hand": result["hero_hand"],
-            "board_cards": result["board_cards"],
-            "num_opponents": result["num_opponents"],
+            "win_probability": result.get("win_probability"),
+            "tie_probability": result.get("tie_probability"),
+            "loss_probability": result.get("loss_probability"),
+            "simulations_run": result.get("simulations_run"),
+            "execution_time_ms": result.get("execution_time_ms"),
+            "confidence_interval": result.get("confidence_interval"),
+            "hand_categories": result.get("hand_categories"),
+            "hero_hand": result.get("hero_hand"),
+            "board_cards": result.get("board_cards"),
+            "num_opponents": result.get("num_opponents"),
             "error": None
         }
+        
+        # Add any advanced features if present
+        for key in ["position_aware_equity", "icm_equity", "multi_way_statistics", 
+                    "defense_frequencies", "coordination_effects"]:
+            if key in result:
+                response_data[key] = result[key]
+        
+        return response_data
         
     except ValueError as e:
         # Return error response for validation errors

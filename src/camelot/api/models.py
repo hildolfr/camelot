@@ -1,6 +1,6 @@
 """Pydantic models for API requests and responses."""
 
-from typing import List, Optional, Dict, Tuple, Union
+from typing import List, Optional, Dict, Tuple, Union, Any
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -61,6 +61,13 @@ class CalculateResponse(BaseModel):
     board_cards: List[str] = Field(..., description="Board cards used in calculation")
     num_opponents: int = Field(..., description="Number of opponents in calculation")
     error: Optional[str] = Field(None, description="Error message if calculation failed")
+    
+    # Advanced features (optional, for future use)
+    position_aware_equity: Optional[Dict[str, float]] = Field(None, description="Position-based equity adjustments")
+    icm_equity: Optional[float] = Field(None, description="ICM-adjusted equity for tournaments")
+    multi_way_statistics: Optional[Dict[str, Any]] = Field(None, description="Statistics for multi-way pots")
+    defense_frequencies: Optional[Dict[str, float]] = Field(None, description="Optimal defense frequencies")
+    coordination_effects: Optional[Dict[str, float]] = Field(None, description="Board/range coordination effects")
     
     model_config = {
         "json_schema_extra": {
