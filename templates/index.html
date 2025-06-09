@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        /* Inline critical CSS for faster initial render */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            color: #fff;
+            padding: 1rem;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+            animation: fadeIn 0.5s ease-in;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        
+        .calculator-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            animation: slideUp 0.5s ease-out;
+        }
+        
+        .section {
+            margin-bottom: 2rem;
+        }
+        
+        .section-title {
+            font-size: 1.3rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .card {
+            aspect-ratio: 2/3;
+            background: white;
+            border: 2px solid transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #333;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        
+        .card.selected {
+            border-color: #4CAF50;
+            background: #E8F5E9;
+            transform: scale(1.05);
+        }
+        
+        .card.red {
+            color: #D32F2F;
+        }
+        
+        .suit-icon {
+            font-size: 1.2rem;
+            position: absolute;
+            bottom: 0.3rem;
+            right: 0.3rem;
+        }
+        
+        .opponents-selector {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        
+        .opponent-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 1rem;
+        }
+        
+        .opponent-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .opponent-btn.selected {
+            background: #4CAF50;
+            border-color: #4CAF50;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+        
+        .btn {
+            flex: 1;
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-primary {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+        }
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .results {
+            display: none;
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            animation: fadeIn 0.3s ease-in;
+        }
+        
+        .result-bar {
+            display: flex;
+            margin-bottom: 1rem;
+            height: 40px;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+        
+        .result-segment {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            transition: all 0.5s ease;
+        }
+        
+        .win-segment {
+            background: #4CAF50;
+        }
+        
+        .tie-segment {
+            background: #FFC107;
+        }
+        
+        .loss-segment {
+            background: #F44336;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 2rem 0;
+        }
+        
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        @media (max-width: 600px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .calculator-card {
+                padding: 1.5rem;
+            }
+            
+            .card {
+                font-size: 1.2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>⚔️ Camelot Poker Calculator</h1>
+            <p>Calculate your Texas Hold'em odds with the power of Poker Knight</p>
+        </header>
+        
+        <div class="calculator-card">
+            <div class="section">
+                <h2 class="section-title">🃏 Your Hand</h2>
+                <div id="heroCards" class="card-grid">
+                    <!-- Cards will be generated by JavaScript -->
+                </div>
+                <p>Selected: <span id="selectedHero">None</span></p>
+            </div>
+            
+            <div class="section">
+                <h2 class="section-title">🎲 Board Cards (Optional)</h2>
+                <div id="boardCards" class="card-grid">
+                    <!-- Cards will be generated by JavaScript -->
+                </div>
+                <p>Selected: <span id="selectedBoard">None</span></p>
+            </div>
+            
+            <div class="section">
+                <h2 class="section-title">👥 Number of Opponents</h2>
+                <div class="opponents-selector">
+                    <button class="opponent-btn" data-opponents="1">1</button>
+                    <button class="opponent-btn" data-opponents="2">2</button>
+                    <button class="opponent-btn" data-opponents="3">3</button>
+                    <button class="opponent-btn" data-opponents="4">4</button>
+                    <button class="opponent-btn" data-opponents="5">5</button>
+                    <button class="opponent-btn" data-opponents="6">6</button>
+                </div>
+            </div>
+            
+            <div class="action-buttons">
+                <button id="calculateBtn" class="btn btn-primary" disabled>Calculate Odds</button>
+                <button id="clearBtn" class="btn btn-secondary">Clear All</button>
+            </div>
+            
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                <p>Calculating your odds...</p>
+            </div>
+            
+            <div id="results" class="results">
+                <h3>Results</h3>
+                <div class="result-bar">
+                    <div id="winBar" class="result-segment win-segment"></div>
+                    <div id="tieBar" class="result-segment tie-segment"></div>
+                    <div id="lossBar" class="result-segment loss-segment"></div>
+                </div>
+                <div id="resultDetails"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+# Core dependencies - minimal for Python 3.13 compatibility
+fastapi
+uvicorn[standard]
+jinja2
+python-multipart
+aiofiles
+
+# Essential for development
+pytest
+httpx
+
+# poker_knight is installed locally from ./poker_knight
