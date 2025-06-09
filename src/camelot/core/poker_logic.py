@@ -4,7 +4,7 @@ This module handles all poker calculations and validates inputs.
 """
 
 from typing import List, Dict, Optional, Tuple
-from poker_knight import solve_poker_hand
+from poker_knight.solver import solve_poker_hand
 from .result_adapter import ResultAdapter
 
 

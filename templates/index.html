@@ -19,7 +19,6 @@
             min-height: 100vh;
             color: #fff;
             padding: 1rem;
-            padding-bottom: 60px; /* Space for ticker */
             overflow-x: hidden;
             position: relative;
         }
@@ -487,98 +486,6 @@
             to { transform: rotate(360deg); }
         }
         
-        /* History ticker */
-        .history-ticker {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: rgba(0, 0, 0, 0.8);
-            backdrop-filter: blur(10px);
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            z-index: 100;
-            overflow: hidden;
-            height: 50px;
-            display: flex;
-            align-items: center;
-        }
-        
-        .ticker-content {
-            display: flex;
-            align-items: center;
-            padding: 0 2rem;
-            white-space: nowrap;
-            width: fit-content;
-        }
-        
-        .ticker-items {
-            display: flex;
-            gap: 3rem;
-            animation: scrollLeft 30s linear infinite;
-        }
-        
-        @keyframes scrollLeft {
-            0% { 
-                transform: translateX(100vw); 
-            }
-            100% { 
-                transform: translateX(calc(-100% - 100vw)); 
-            }
-        }
-        
-        .ticker-label {
-            color: #FFD700;
-            font-weight: bold;
-            margin-right: 1rem;
-            text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
-        }
-        
-        
-        .ticker-item {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.3rem 1rem;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            transition: all 0.3s ease;
-        }
-        
-        .ticker-item:hover {
-            background: rgba(255, 255, 255, 0.2);
-            transform: scale(1.05);
-        }
-        
-        .ticker-hand {
-            font-weight: bold;
-            color: #90CAF9;
-        }
-        
-        .ticker-board {
-            color: #FFD700;
-        }
-        
-        .ticker-result {
-            font-weight: bold;
-        }
-        
-        .ticker-result.win {
-            color: #4CAF50;
-        }
-        
-        .ticker-result.loss {
-            color: #F44336;
-        }
-        
-        .ticker-result.tie {
-            color: #FFC107;
-        }
-        
-        .ticker-time {
-            font-size: 0.8rem;
-            opacity: 0.7;
-        }
         
         /* Modal styles */
         .modal {
@@ -604,26 +511,132 @@
             background: linear-gradient(145deg, #1e3c72, #2a5298);
             border: 1px solid rgba(255, 255, 255, 0.2);
             border-radius: 20px;
-            max-width: 800px;
+            max-width: 1200px;
             max-height: 80vh;
             width: 90%;
             overflow: hidden;
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
             animation: slideUp 0.3s ease-out;
+            display: flex;
+            flex-direction: column;
         }
         
         .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
             padding: 1.5rem;
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
             background: rgba(0, 0, 0, 0.2);
         }
         
+        .modal-header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        
         .modal-header h2 {
             margin: 0;
             color: #FFD700;
+            text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .history-controls {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        
+        .history-filter {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+        
+        .filter-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+        }
+        
+        .filter-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+        
+        .filter-btn.active {
+            background: #FFD700;
+            color: #1e3c72;
+            border-color: #FFD700;
+            font-weight: bold;
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+        }
+        
+        .clear-history-btn {
+            background: rgba(244, 67, 54, 0.2);
+            border: 1px solid #F44336;
+            color: #FFCDD2;
+            padding: 0.5rem 1rem;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+        }
+        
+        .clear-history-btn:hover {
+            background: rgba(244, 67, 54, 0.4);
+            transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(244, 67, 54, 0.5);
+        }
+        
+        .history-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 1rem;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            margin-bottom: 1rem;
+            border: 1px solid rgba(255, 215, 0, 0.2);
+            position: relative;
+            overflow: hidden;
+            animation: fadeIn 0.5s ease-out;
+        }
+        
+        .history-stats::after {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(45deg, transparent, #FFD700, transparent);
+            opacity: 0.1;
+            z-index: -1;
+            animation: shimmer 3s linear infinite;
+        }
+        
+        .stat-box {
+            text-align: center;
+        }
+        
+        .stat-box-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #FFD700;
+        }
+        
+        .stat-box-label {
+            font-size: 0.8rem;
+            opacity: 0.7;
+            margin-top: 0.2rem;
         }
         
         .modal-close {
@@ -647,9 +660,44 @@
         }
         
         .modal-body {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        .history-list {
+            flex: 1;
             padding: 1.5rem;
-            max-height: calc(80vh - 80px);
             overflow-y: auto;
+            max-height: calc(80vh - 120px);
+        }
+        
+        .game-visualization {
+            width: 400px;
+            padding: 1.5rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-left: 1px solid rgba(255, 255, 255, 0.1);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            animation: slideInRight 0.3s ease-out;
+        }
+        
+        .game-visualization.active {
+            display: flex;
+        }
+        
+        @media (max-width: 900px) {
+            .modal-body {
+                flex-direction: column;
+            }
+            
+            .game-visualization {
+                width: 100%;
+                max-height: 300px;
+                border-left: none;
+                border-top: 1px solid rgba(255, 255, 255, 0.1);
+            }
         }
         
         .history-item-full {
@@ -659,12 +707,49 @@
             padding: 1rem;
             margin-bottom: 1rem;
             transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            animation: slideInRight 0.3s ease-out backwards;
+        }
+        
+        .history-item-full::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            transition: left 0.5s ease;
+        }
+        
+        .history-item-full:hover::before {
+            left: 100%;
         }
         
         .history-item-full:hover {
             background: rgba(255, 255, 255, 0.1);
             transform: translateX(5px);
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            border-color: rgba(255, 215, 0, 0.3);
+            cursor: pointer;
+        }
+        
+        .history-item-full.selected {
+            background: rgba(255, 215, 0, 0.1);
+            border-color: #FFD700;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+        }
+        
+        @keyframes slideInRight {
+            from {
+                opacity: 0;
+                transform: translateX(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
         }
         
         .history-item-header {
@@ -706,6 +791,147 @@
             font-weight: bold;
         }
         
+        .history-detail-value.win {
+            color: #4CAF50;
+            text-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+        }
+        
+        .history-detail-value.loss {
+            color: #F44336;
+            text-shadow: 0 0 10px rgba(244, 67, 54, 0.5);
+        }
+        
+        .history-detail-value.tie {
+            color: #FFC107;
+            text-shadow: 0 0 10px rgba(255, 193, 7, 0.5);
+        }
+        
+        /* Poker table visualization */
+        .poker-table {
+            width: 100%;
+            max-width: 350px;
+            aspect-ratio: 2/1;
+            background: radial-gradient(ellipse at center, #2d5a2d, #1a3a1a);
+            border: 8px solid #8B4513;
+            border-radius: 100px;
+            position: relative;
+            box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.5), 0 10px 20px rgba(0, 0, 0, 0.3);
+            margin: 1rem 0;
+        }
+        
+        .table-cards {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .hero-cards {
+            position: absolute;
+            bottom: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .poker-card {
+            width: 50px;
+            height: 70px;
+            background: white;
+            border: 1px solid #333;
+            border-radius: 5px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+            animation: dealCard 0.3s ease-out backwards;
+        }
+        
+        .poker-card.red {
+            color: #D32F2F;
+        }
+        
+        .poker-card .rank {
+            font-size: 1.3rem;
+        }
+        
+        .poker-card .suit {
+            font-size: 1.1rem;
+            margin-top: -5px;
+        }
+        
+        @keyframes dealCard {
+            from {
+                transform: translateY(-20px) rotateX(90deg);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0) rotateX(0);
+                opacity: 1;
+            }
+        }
+        
+        .game-info {
+            text-align: center;
+            margin-top: 2rem;
+            width: 100%;
+        }
+        
+        .game-info h3 {
+            color: #FFD700;
+            margin-bottom: 1rem;
+        }
+        
+        .game-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .game-stat {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 0.8rem;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .game-stat-label {
+            font-size: 0.8rem;
+            opacity: 0.7;
+            margin-bottom: 0.3rem;
+        }
+        
+        .game-stat-value {
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+        
+        /* Clear animation */
+        @keyframes implode {
+            0% {
+                transform: scale(1) rotate(0deg);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.1) rotate(5deg);
+            }
+            100% {
+                transform: scale(0) rotate(360deg);
+                opacity: 0;
+            }
+        }
+        
+        .history-item-full.clearing {
+            animation: implode 0.5s ease-in forwards;
+        }
+        
         @media (max-width: 600px) {
             .header h1 {
                 font-size: 2rem;
@@ -733,14 +959,6 @@
 <body>
     <!-- Animated background particles -->
     <div class="particles" id="particles"></div>
-    
-    <!-- History ticker -->
-    <div class="history-ticker" id="historyTicker">
-        <div class="ticker-content" id="tickerContent">
-            <span class="ticker-label">Recent Hands:</span>
-            <div class="ticker-items" id="tickerItems"></div>
-        </div>
-    </div>
     
     <div class="app-layout">
         <div class="main-content">
@@ -833,11 +1051,39 @@
     <div id="historyModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>📜 Calculation History</h2>
-                <button class="modal-close" id="closeHistoryModal">&times;</button>
+                <div class="modal-header-top">
+                    <h2>📜 Calculation History</h2>
+                    <button class="modal-close" id="closeHistoryModal">&times;</button>
+                </div>
+                <div class="history-controls">
+                    <div class="history-filter">
+                        <button class="filter-btn active" data-filter="all">All</button>
+                        <button class="filter-btn" data-filter="preflop">Pre-flop</button>
+                        <button class="filter-btn" data-filter="flop">Flop</button>
+                        <button class="filter-btn" data-filter="turn">Turn</button>
+                        <button class="filter-btn" data-filter="river">River</button>
+                    </div>
+                    <button class="clear-history-btn" id="clearHistoryBtn">🗑️ Clear History</button>
+                </div>
             </div>
-            <div class="modal-body" id="historyModalBody">
-                <!-- History will be populated here -->
+            <div class="modal-body">
+                <div class="history-list" id="historyModalBody">
+                    <!-- History will be populated here -->
+                </div>
+                <div class="game-visualization" id="gameVisualization">
+                    <h3 style="color: #FFD700; margin-bottom: 1rem;">Table View</h3>
+                    <div class="poker-table">
+                        <div class="table-cards" id="tableCards">
+                            <!-- Board cards will be shown here -->
+                        </div>
+                        <div class="hero-cards" id="heroCards">
+                            <!-- Hero cards will be shown here -->
+                        </div>
+                    </div>
+                    <div class="game-info" id="gameInfo">
+                        <!-- Game stats will be shown here -->
+                    </div>
+                </div>
             </div>
         </div>
     </div>
