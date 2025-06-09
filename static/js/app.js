@@ -113,7 +113,10 @@ function handleCardClick(cardId) {
 function updateCardVisuals() {
     // Reset all cards
     document.querySelectorAll('.card').forEach(card => {
-        card.classList.remove('selected', 'hero-card', 'board-card');
+        card.classList.remove('selected', 'hero-card', 'board-card', 'flip-in');
+        // Reset any inline styles that might have been applied
+        card.style.transform = '';
+        card.style.opacity = '';
         const badge = card.querySelector('.selection-badge');
         if (badge) badge.remove();
     });
@@ -122,20 +125,23 @@ function updateCardVisuals() {
     state.selectedCards.forEach((cardId, index) => {
         const card = document.querySelector(`[data-card="${cardId}"]`);
         if (card) {
-            card.classList.add('selected');
-            
-            // Add appropriate class based on position
-            if (index < 2) {
-                card.classList.add('hero-card');
-            } else {
-                card.classList.add('board-card');
-            }
-            
-            // Add selection badge with number
-            const badge = document.createElement('div');
-            badge.className = 'selection-badge';
-            badge.textContent = index + 1;
-            card.appendChild(badge);
+            // Add classes with a slight delay for animation
+            setTimeout(() => {
+                card.classList.add('selected');
+                
+                // Add appropriate class based on position
+                if (index < 2) {
+                    card.classList.add('hero-card');
+                } else {
+                    card.classList.add('board-card');
+                }
+                
+                // Add selection badge with number
+                const badge = document.createElement('div');
+                badge.className = 'selection-badge';
+                badge.textContent = index + 1;
+                card.appendChild(badge);
+            }, index * 30); // Stagger the animations
         }
     });
     
@@ -201,12 +207,20 @@ function updateUI() {
     // Board status
     const boardStatus = document.getElementById('boardStatus');
     const boardValue = boardStatus.querySelector('.status-value');
+    const boardHint = document.getElementById('boardHint');
+    
     if (boardCards.length === 0) {
         boardValue.textContent = '-';
-        boardStatus.classList.remove('active');
+        boardStatus.classList.remove('active', 'warning');
+        boardHint.style.display = 'none';
     } else {
         boardValue.textContent = boardCards.join(' ');
-        boardStatus.classList.toggle('active', boardCards.length >= 3);
+        const validBoard = boardCards.length >= 3 && boardCards.length <= 5;
+        boardStatus.classList.toggle('active', validBoard);
+        boardStatus.classList.toggle('warning', boardCards.length > 0 && boardCards.length < 3);
+        
+        // Show hint for invalid board size
+        boardHint.style.display = (boardCards.length > 0 && boardCards.length < 3) ? 'inline' : 'none';
     }
     
     // Opponent status
@@ -222,8 +236,21 @@ function updateUI() {
     
     // Enable/disable calculate button
     const calculateBtn = document.getElementById('calculateBtn');
-    const canCalculate = heroCards.length === 2 && state.numOpponents > 0;
+    // Can calculate if: 2 hero cards, has opponents, and board is either 0 or 3-5 cards
+    const validBoardSize = boardCards.length === 0 || (boardCards.length >= 3 && boardCards.length <= 5);
+    const canCalculate = heroCards.length === 2 && state.numOpponents > 0 && validBoardSize;
     calculateBtn.disabled = !canCalculate;
+    
+    // Update button text with helpful message
+    if (heroCards.length !== 2) {
+        calculateBtn.textContent = 'Select 2 hole cards';
+    } else if (state.numOpponents === 0) {
+        calculateBtn.textContent = 'Select opponents';
+    } else if (boardCards.length > 0 && boardCards.length < 3) {
+        calculateBtn.textContent = `Add ${3 - boardCards.length} more board card${3 - boardCards.length > 1 ? 's' : ''}`;
+    } else {
+        calculateBtn.textContent = 'Calculate Odds';
+    }
     
     if (canCalculate) {
         calculateBtn.classList.add('pulse-glow');
@@ -259,6 +286,17 @@ async function calculateOdds() {
         });
         
         const data = await response.json();
+        
+        if (!response.ok) {
+            // Handle validation errors specifically
+            if (response.status === 422) {
+                const errorDetail = data.detail?.[0]?.msg || data.detail || 'Invalid card configuration';
+                showMessage(`Validation error: ${errorDetail}`, 'error');
+            } else {
+                showMessage(`Server error: ${response.status}`, 'error');
+            }
+            return;
+        }
         
         if (data.success) {
             displayResults(data);
