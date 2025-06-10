@@ -1,6 +1,6 @@
 """
 Cache manager for preloading poker calculations at startup.
-Leverages poker_knight's built-in caching capabilities.
+Works with CachedPokerCalculator to warm the cache.
 """
 
 import asyncio
@@ -54,6 +54,10 @@ class CacheManager:
         self._is_warming = False
         self._active_tasks = 0
         
+        # Track recent cache additions for rate calculation
+        self._recent_cache_times = []  # List of (timestamp, count) tuples
+        self._last_count = 0
+        
         # Create a separate thread pool for cache warming with lower priority
         # Use only 2 threads to avoid overwhelming the system
         self._cache_executor = ThreadPoolExecutor(
@@ -103,17 +107,16 @@ class CacheManager:
             # Run the calculation in our dedicated cache thread pool
             # This prevents cache warming from blocking user requests
             loop = asyncio.get_event_loop()
-            start_time = time.time()
             result = await loop.run_in_executor(self._cache_executor, self.calculator.calculate, hand, opponents)
-            elapsed = time.time() - start_time
             
-            # If calculation was very fast (< 5ms), it was likely cached
-            was_cached = elapsed < 0.005
+            # Check if this was a cache hit using the new cache system
+            was_cached = result.get('from_cache', False)
             
             if not was_cached:
-                # This was a new calculation, increment both counters
+                # This was a new calculation, increment counters
                 self.cache_stats['preflop_cached'] += 1
                 self.cache_stats['new_cached'] += 1
+                self.cache_stats['warming_this_session'] += 1
             # If it was already cached, we don't increment the total count
                 
         except Exception as e:
@@ -210,8 +213,14 @@ class CacheManager:
         """Cache a single board scenario asynchronously."""
         try:
             loop = asyncio.get_event_loop()
-            await loop.run_in_executor(self._cache_executor, self.calculator.calculate, hand, opponents, board)
-            self.cache_stats['board_cached'] += 1
+            result = await loop.run_in_executor(self._cache_executor, self.calculator.calculate, hand, opponents, board)
+            
+            # Check if this was a cache hit using the new cache system
+            was_cached = result.get('from_cache', False)
+            
+            if not was_cached:
+                self.cache_stats['board_cached'] += 1
+                self.cache_stats['warming_this_session'] += 1
         except Exception as e:
             self.cache_stats['errors'] += 1
     
@@ -234,25 +243,14 @@ class CacheManager:
         total_preflop_scenarios = total_hands * 6  # 6 opponent counts (1-6)
         self.cache_stats['total_expected'] = total_preflop_scenarios
         
-        # Try to get actual cache size from poker_knight if possible
+        # Try to get actual cache size from our new cache system
         try:
-            # Check if we can access the cache database directly
-            import sqlite3
-            cache_db_path = os.path.join(os.path.expanduser("~/.camelot_cache"), "poker_cache.db")
-            
-            if os.path.exists(cache_db_path):
-                conn = sqlite3.connect(cache_db_path)
-                cursor = conn.cursor()
-                # Count entries in the cache_results table
-                try:
-                    cursor.execute("SELECT COUNT(*) FROM cache_results")
-                    existing_count = cursor.fetchone()[0]
-                except Exception as e:
-                    logger.warning(f"Could not query cache_results table: {e}")
-                    existing_count = 0
-                conn.close()
+            # Get cache stats from the calculator (which uses our new cache)
+            if hasattr(self.calculator, 'get_cache_stats'):
+                cache_stats = self.calculator.get_cache_stats()
+                existing_count = cache_stats.get('sqlite_entries', 0)
                 
-                # Estimate preflop scenarios from total cache entries
+                # Count only preflop scenarios (no board cards)
                 # This is approximate but better than starting from 0
                 estimated_cached = min(existing_count, total_preflop_scenarios)
             else:
@@ -263,8 +261,9 @@ class CacheManager:
         
         self.cache_stats['initial_cached'] = estimated_cached
         self.cache_stats['preflop_cached'] = estimated_cached  # Start counting from existing
+        self.cache_stats['warming_this_session'] = 0  # Track new entries added this session
         
-        logger.info(f"📊 Estimated {estimated_cached}/{total_preflop_scenarios} scenarios already cached")
+        logger.info(f"📊 Found {estimated_cached}/{total_preflop_scenarios} scenarios already cached")
         
         # Always show warming if not fully populated
         if estimated_cached < total_preflop_scenarios:
@@ -309,7 +308,12 @@ class CacheManager:
     def get_cache_stats(self) -> dict:
         """Get current cache statistics."""
         self._update_elapsed_time()
-        return self.cache_stats.copy()
+        stats = self.cache_stats.copy()
+        
+        # Calculate rolling rate (entries in the last 60 seconds)
+        stats['rolling_rate'] = self._calculate_rolling_rate()
+        
+        return stats
     
     def is_warming(self) -> bool:
         """Check if cache warming is currently active."""
@@ -326,3 +330,31 @@ class CacheManager:
             self._is_warming = False
             self._update_elapsed_time()
             logger.info("🎉 Cache warming complete!")
+    
+    def _calculate_rolling_rate(self) -> float:
+        """Calculate the rolling cache rate over the last 60 seconds."""
+        current_time = time.time()
+        # Track new entries this session, not total count
+        current_count = self.cache_stats['warming_this_session']
+        
+        # Add current data point
+        self._recent_cache_times.append((current_time, current_count))
+        
+        # Remove data points older than 60 seconds
+        cutoff_time = current_time - 60
+        self._recent_cache_times = [(t, c) for t, c in self._recent_cache_times if t > cutoff_time]
+        
+        # Need at least 2 points to calculate rate
+        if len(self._recent_cache_times) < 2:
+            return 0.0
+        
+        # Calculate rate based on first and last points in the window
+        oldest_time, oldest_count = self._recent_cache_times[0]
+        newest_time, newest_count = self._recent_cache_times[-1]
+        
+        time_diff = newest_time - oldest_time
+        count_diff = newest_count - oldest_count
+        
+        if time_diff > 0:
+            return count_diff / time_diff  # Rate per second
+        return 0.0

@@ -7,26 +7,11 @@ from typing import List, Dict, Optional, Tuple
 from poker_knight.solver import solve_poker_hand
 from .result_adapter import ResultAdapter
 
-# Try to import poker_knight's cache configuration
-try:
-    from poker_knight.storage.unified_cache import get_unified_cache
-    from poker_knight.storage.startup_prepopulation import populate_preflop_on_startup
-    
-    # Enable poker_knight's built-in caching with SQLite persistence
-    # Store cache in /tmp to avoid triggering file watchers
-    import os
-    cache_dir = os.path.expanduser("~/.camelot_cache")
-    os.makedirs(cache_dir, exist_ok=True)
-    
-    cache = get_unified_cache(
-        enable_persistence=True,
-        sqlite_path=os.path.join(cache_dir, "poker_cache.db"),
-        max_memory_mb=128  # Allow up to 128MB of memory cache
-    )
-    print("✅ Poker Knight unified cache enabled with persistence")
-except ImportError:
-    print("⚠️ Poker Knight unified cache not available, using basic caching")
-    cache = None
+# Note: poker_knight v1.7.0+ removed caching functionality
+# Camelot now handles its own caching layer
+import os
+cache_dir = os.path.expanduser("~/.camelot_cache")
+os.makedirs(cache_dir, exist_ok=True)
 
 
 class PokerCalculator:

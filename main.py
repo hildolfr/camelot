@@ -10,10 +10,10 @@ from pathlib import Path
 import asyncio
 import logging
 
-from src.camelot.api.calculator import router as api_router, calculator
+from src.camelot.api.calculator import router as api_router
 from src.camelot.api import calculator as calc_module
 from src.camelot.web.routes import router as web_router
-from src.camelot.core.cache_manager import CacheManager
+from src.camelot.core.cache_init import initialize_cache_system, get_cache_manager
 import config
 
 # Configure logging
@@ -52,16 +52,19 @@ async def startup_event():
     """Initialize application on startup."""
     print("🏰 Camelot is starting up...")
     
+    # Initialize cache system
+    calculator, cache_storage = initialize_cache_system()
+    
     if config.ENABLE_CACHE:
-        # Initialize cache manager
-        cache_manager = CacheManager(calculator)
+        # Initialize cache manager for warming
+        cache_manager = get_cache_manager()
         calc_module.cache_manager = cache_manager  # Set reference for API endpoint
         
         # Start cache warming in background - don't await!
         asyncio.create_task(initialize_cache_background(cache_manager))
         print("📊 Cache warming started in background")
     else:
-        print("💾 Cache disabled")
+        print("💾 Cache warming disabled")
     
     print("🃏 Poker Knight module ready for calculations")
     print("📡 API docs available at /api/docs")

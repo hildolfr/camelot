@@ -1791,10 +1791,30 @@ async function checkCacheStatus() {
         const cacheCountEl = document.getElementById('cacheCount');
         const cacheRateEl = document.getElementById('cacheRate');
         
+        // Debug logging
+        console.log('Cache status data:', data);
+        console.log('Elements found:', {
+            status: !!cacheStatusEl,
+            count: !!cacheCountEl,
+            rate: !!cacheRateEl
+        });
+        
         if (data.is_warming) {
             // Show the indicator
             cacheStatusEl.style.display = 'flex';
-            cacheCountEl.textContent = data.total_cached.toLocaleString();
+            
+            // Show warming progress this session
+            if (data.warming_this_session !== undefined) {
+                cacheCountEl.textContent = `+${data.warming_this_session.toLocaleString()}`;
+                // Add progress info if available
+                if (data.progress_percent) {
+                    cacheCountEl.textContent += ` (${data.progress_percent}%)`;
+                }
+            } else {
+                // Fallback if warming_this_session is not available
+                cacheCountEl.textContent = '0';
+            }
+            
             // Convert rate per second to rate per minute
             const ratePerMinute = data.rate_per_second * 60;
             cacheRateEl.textContent = ratePerMinute.toFixed(0);

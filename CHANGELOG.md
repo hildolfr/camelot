@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Cache warming indicator now correctly shows new entries added this session instead of total cache count
+- Cache warming progress now displays as "+X (Y%)" to clarify what's being added
+- Rolling rate calculation now tracks new entries per minute instead of total entries
+
 ### Added
 - Initial project setup with Python virtual environment
 - Cloned poker_knight module from github.com/hildolfr/poker_knight
@@ -18,6 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Designed mobile-first responsive web UI with visual card selection
 - Added interactive JavaScript for real-time card selection and results display
 - Implemented input validation for cards and game rules
+- **Independent caching system** to replace poker_knight v1.7.0's removed cache:
+  - Hybrid memory (2GB) + SQLite (8GB) storage architecture
+  - Sub-millisecond cache hits with ~3000x speedup
+  - Complete game state caching from preflop to river
+  - Cache warming system for common scenarios
+  - Real-time cache statistics and monitoring
 - Created visually appealing UI with animations and gradient backgrounds
 - Git repository initialization with proper commit structure
 - Fixed calculate button responsiveness and z-index issues

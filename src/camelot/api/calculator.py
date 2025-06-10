@@ -3,14 +3,13 @@
 from fastapi import APIRouter, HTTPException
 from typing import Dict, Optional
 
-from ..core.poker_logic import PokerCalculator
-from ..core.cache_manager import CacheManager
+from ..core.cache_init import get_cached_calculator, get_cache_manager
 from .models import CalculateRequest, CalculateResponse, HealthResponse
 
 
 router = APIRouter(prefix="/api", tags=["calculator"])
-calculator = PokerCalculator()
-cache_manager: Optional[CacheManager] = None
+calculator = get_cached_calculator()
+cache_manager: Optional['CacheManager'] = None
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -18,7 +17,7 @@ async def health_check() -> Dict:
     """Check if the API is healthy and poker_knight is available."""
     try:
         # Try a simple calculation to verify poker_knight works
-        test_result = calculator.calculate(["A♠", "K♠"], 1)
+        test_result = calculator.calculate_no_cache(["A♠", "K♠"], 1)
         poker_available = True
     except:
         poker_available = False
@@ -105,27 +104,39 @@ async def calculate_poker_odds(request: CalculateRequest) -> Dict:
 @router.get("/cache-status")
 async def get_cache_status() -> Dict:
     """Get current cache statistics."""
+    # Get cache stats directly from calculator
+    cache_stats = calculator.get_cache_stats()
+    
+    # Get warming stats from cache manager if available
     if cache_manager:
-        stats = cache_manager.get_cache_stats()
-        total_cached = stats.get('preflop_cached', 0) + stats.get('board_cached', 0)
+        warming_stats = cache_manager.get_cache_stats()
+        # Show what's being warmed this session, not the total count
+        warming_this_session = warming_stats.get('warming_this_session', 0)
+        initial_cached = warming_stats.get('initial_cached', 0)
+        total_expected = warming_stats.get('total_expected', 0)
+        rate = warming_stats.get('rolling_rate', 0)
+        is_warming = cache_manager.is_warming()
         
-        # Calculate rate based on new additions this session
-        elapsed = stats.get('elapsed_time', 0)
-        new_cached = stats.get('new_cached', 0)
-        rate = new_cached / elapsed if elapsed > 0 else 0
-        
-        return {
-            "status": "active",
-            "is_warming": cache_manager.is_warming(),
-            "total_cached": total_cached,
-            "rate_per_second": round(rate, 1),
-            "statistics": stats
-        }
+        # Calculate progress
+        progress_percent = ((initial_cached + warming_this_session) / total_expected * 100) if total_expected > 0 else 0
     else:
-        return {
-            "status": "not_initialized",
-            "is_warming": False,
-            "total_cached": 0,
-            "rate_per_second": 0,
-            "statistics": {}
+        warming_this_session = 0
+        initial_cached = cache_stats.get('sqlite_entries', 0)
+        total_expected = 0
+        rate = 0
+        is_warming = False
+        progress_percent = 0
+    
+    return {
+        "status": "active",
+        "is_warming": is_warming,
+        "warming_this_session": warming_this_session,
+        "initial_cached": initial_cached,
+        "total_expected": total_expected,
+        "progress_percent": round(progress_percent, 1),
+        "rate_per_second": round(rate, 1),
+        "statistics": {
+            **cache_stats,
+            "warming": warming_stats if cache_manager else {}
         }
+    }
