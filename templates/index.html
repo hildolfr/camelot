@@ -7,7 +7,95 @@
     <link rel="stylesheet" href="/static/css/style.css">
     <link rel="stylesheet" href="/static/css/navigation.css">
     <link rel="stylesheet" href="/static/css/lobby.css">
+    <link rel="stylesheet" href="/static/css/poker_table.css">
     <style>
+        /* Locked game card styles with higher specificity */
+        .poker-lobby .game-card.locked {
+            position: relative;
+            overflow: visible !important;
+            opacity: 0.85;
+            cursor: not-allowed !important;
+        }
+        
+        .poker-lobby .game-card.locked::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 10;
+            border-radius: 20px;
+            pointer-events: none;
+        }
+        
+        .poker-lobby .game-card.locked::after {
+            content: '🔒';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 4rem;
+            z-index: 20;
+            filter: drop-shadow(0 0 20px rgba(0, 0, 0, 0.9));
+            pointer-events: none;
+        }
+        
+        .poker-lobby .game-card.locked:hover {
+            transform: none !important;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2) !important;
+            border-color: rgba(255, 255, 255, 0.1) !important;
+        }
+        
+        .poker-lobby .game-card.locked .join-btn {
+            background: linear-gradient(135deg, #666 0%, #444 100%) !important;
+            cursor: not-allowed !important;
+            opacity: 0.5 !important;
+        }
+        
+        .poker-lobby .game-card.locked .game-icon,
+        .poker-lobby .game-card.locked h3,
+        .poker-lobby .game-card.locked .game-details,
+        .poker-lobby .game-card.locked .join-btn {
+            position: relative;
+            z-index: 15;
+        }
+        
+        .poker-lobby .construction-banner {
+            position: absolute;
+            top: 20px;
+            right: -35px;
+            background: linear-gradient(135deg, #FF6B6B 0%, #DC143C 100%);
+            color: white;
+            padding: 0.3rem 2.5rem;
+            font-size: 0.8rem;
+            font-weight: bold;
+            transform: rotate(45deg);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            z-index: 25;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        /* Add chain decoration */
+        .poker-lobby .game-card.locked .chain-decoration {
+            position: absolute;
+            top: -10px;
+            left: -10px;
+            right: -10px;
+            bottom: -10px;
+            pointer-events: none;
+            z-index: 30;
+            background-image: 
+                linear-gradient(45deg, #666 25%, transparent 25%, transparent 75%, #666 75%, #666),
+                linear-gradient(45deg, #666 25%, transparent 25%, transparent 75%, #666 75%, #666);
+            background-size: 20px 20px;
+            background-position: 0 0, 10px 10px;
+            opacity: 0.2;
+            border-radius: 25px;
+        }
+        
         /* Inline critical CSS for faster initial render */
         * {
             margin: 0;
@@ -1849,7 +1937,9 @@
                     <button class="join-btn">Join Table</button>
                 </div>
                 
-                <div class="game-card" onclick="joinGame('short-stack-survival')">
+                <div class="game-card locked" onclick="return false;">
+                    <div class="chain-decoration"></div>
+                    <div class="construction-banner">Coming Soon</div>
                     <div class="game-icon">⚡</div>
                     <h3>Short Stack Survival</h3>
                     <div class="game-details">
@@ -1859,7 +1949,9 @@
                     <button class="join-btn">Join Table</button>
                 </div>
                 
-                <div class="game-card" onclick="joinGame('high-stakes')">
+                <div class="game-card locked" onclick="return false;">
+                    <div class="chain-decoration"></div>
+                    <div class="construction-banner">Coming Soon</div>
                     <div class="game-icon">💎</div>
                     <h3>High Stakes Showdown</h3>
                     <div class="game-details">
@@ -1869,7 +1961,9 @@
                     <button class="join-btn">Join Table</button>
                 </div>
                 
-                <div class="game-card" onclick="joinGame('tournament-bubble')">
+                <div class="game-card locked" onclick="return false;">
+                    <div class="chain-decoration"></div>
+                    <div class="construction-banner">Coming Soon</div>
                     <div class="game-icon">🏆</div>
                     <h3>Tournament Bubble</h3>
                     <div class="game-details">

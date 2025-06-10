@@ -12,6 +12,7 @@ import logging
 
 from src.camelot.api.calculator import router as api_router
 from src.camelot.api import calculator as calc_module
+from src.camelot.api.game_routes import router as game_router
 from src.camelot.web.routes import router as web_router
 from src.camelot.core.cache_init import initialize_cache_system, get_cache_manager
 import config
@@ -44,6 +45,7 @@ app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 # Include routers
 app.include_router(api_router)
+app.include_router(game_router)
 app.include_router(web_router)
 
 

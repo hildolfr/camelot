@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camelot Poker - Game</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/navigation.css">
+    <link rel="stylesheet" href="/static/css/poker_table.css">
+    <!-- Load game scripts in head with defer -->
+    <script src="/static/js/poker_game.js" defer></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            color: #fff;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+            position: relative;
+        }
+        
+        /* Animated background particles */
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: 0;
+        }
+        
+        .particle {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            animation: floatUp 20s infinite linear;
+        }
+        
+        @keyframes floatUp {
+            from {
+                transform: translateY(0) rotate(0deg);
+                opacity: 0;
+            }
+            10% {
+                opacity: 0.3;
+            }
+            90% {
+                opacity: 0.3;
+            }
+            to {
+                transform: translateY(-120vh) rotate(360deg);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Animated background particles -->
+    <div class="particles" id="particles"></div>
+    <!-- Navigation Bar -->
+    <nav class="nav-bar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <h2>⚔️ Camelot Poker</h2>
+            </div>
+            <div class="nav-buttons">
+                <button class="nav-btn" onclick="window.location.href='/'">
+                    🧮 Calculator
+                </button>
+                <button class="nav-btn" onclick="leaveGame()">
+                    🚪 Leave Table
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Game Container -->
+    <div class="poker-game-container">
+        <!-- Game Info Bar -->
+        <div class="game-info-bar">
+            <div class="pot-info">
+                <div class="info-label">POT</div>
+                <div class="info-value" id="potAmount">$0</div>
+            </div>
+            <div class="hand-info">
+                <div class="info-label">HAND #</div>
+                <div class="info-value" id="handNumber">0</div>
+            </div>
+            <div class="blinds-info">
+                <div class="info-label">BLINDS</div>
+                <div class="info-value" id="blindsInfo">$1/$2</div>
+            </div>
+        </div>
+        
+        <!-- Main Table Area -->
+        <div class="poker-table-container">
+            <div class="poker-table-main">
+                <!-- Table Felt -->
+                <div class="table-felt">
+                    <!-- Community Cards Area -->
+                    <div class="board-area">
+                        <div class="community-cards" id="communityCards"></div>
+                    </div>
+                    
+                    <!-- Table Center Logo -->
+                    <div class="table-center">
+                        <div class="table-logo">♠ CAMELOT ♠</div>
+                        
+                        <!-- Current Bet Display -->
+                        <div class="current-bet-display" id="currentBetDisplay" style="display: none;">
+                            <div class="current-bet-label">CURRENT BET</div>
+                            <div class="current-bet-amount" id="currentBetAmount">$0</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Dealer Button -->
+                <div class="dealer-button" id="dealerButton" style="display: none;">D</div>
+                
+                <!-- Player Seats (dynamically positioned) -->
+                <div id="playerSeats"></div>
+            </div>
+        </div>
+        
+        <!-- Betting Controls -->
+        <div class="betting-controls" id="bettingControls">
+            <button class="bet-button fold" onclick="playerAction('fold')" ondblclick="return false">
+                FOLD
+            </button>
+            <button class="bet-button check" onclick="playerAction('check')" id="checkBtn" ondblclick="return false">
+                CHECK
+            </button>
+            <button class="bet-button call" onclick="playerAction('call')" id="callBtn" ondblclick="return false">
+                CALL $<span id="callAmount">0</span>
+            </button>
+            <div class="bet-slider-container">
+                <input type="range" class="bet-slider" id="betSlider" min="0" max="1000" value="0">
+                <div class="bet-amount-display">$<span id="betAmount">0</span></div>
+            </div>
+            <button class="bet-button raise" onclick="playerAction('raise')" id="raiseBtn" ondblclick="return false">
+                RAISE
+            </button>
+            <button class="bet-button all-in" onclick="playerAction('all_in')" ondblclick="return false">
+                ALL IN
+            </button>
+        </div>
+        
+        <!-- Sound Toggle -->
+        <div class="sound-toggle" id="soundToggle" onclick="toggleSound()">
+            🔊
+        </div>
+        
+        <!-- Bug Report Button -->
+        <div class="bug-report-button" id="bugReportBtn" style="cursor: pointer;">
+            🐛 Report Bug
+        </div>
+        
+        <!-- Bug Report Form Modal -->
+        <div class="bug-report-modal" id="bugReportModal" style="display: none;">
+            <div class="bug-report-content">
+                <h3>Report a Bug</h3>
+                <p>Please describe the issue you encountered:</p>
+                <textarea id="bugReportText" placeholder="Describe what happened, what you expected, and any other relevant details..." rows="6"></textarea>
+                <div class="bug-report-buttons">
+                    <button id="submitBugReportBtn">Submit Report</button>
+                    <button id="cancelBugReportBtn">Cancel</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Win Celebration Container -->
+        <div class="win-celebration" id="winCelebration"></div>
+    </div>
+    
+    <!-- Initialize game -->
+    <script>
+        // Wait for DOM and scripts to load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize game with config from session storage
+            const gameConfig = JSON.parse(sessionStorage.getItem('gameConfig') || '{}');
+            console.log('Loading game config:', gameConfig);
+            
+            // Ensure we have a valid config
+            if (!gameConfig.players) {
+                console.warn('No game config found, using default');
+                gameConfig.players = 2;
+                gameConfig.heroStack = 200;
+                gameConfig.opponentStacks = [200];
+                gameConfig.difficulty = 'medium';
+                gameConfig.bigBlind = 2;
+            }
+            
+            // Check if initializePokerGame is available
+            if (typeof initializePokerGame === 'function') {
+                initializePokerGame(gameConfig);
+            } else {
+                console.error('initializePokerGame not found, waiting...');
+                // Fallback: wait a bit and try again
+                setTimeout(function() {
+                    if (typeof initializePokerGame === 'function') {
+                        initializePokerGame(gameConfig);
+                    } else {
+                        console.error('Failed to initialize poker game');
+                    }
+                }, 1000);
+            }
+            
+            // Direct bug report button setup as fallback
+            setTimeout(function() {
+                const bugBtn = document.getElementById('bugReportBtn');
+                if (bugBtn) {
+                    console.log('Setting up bug report button directly...');
+                    bugBtn.style.cursor = 'pointer';
+                    bugBtn.onclick = function(e) {
+                        console.log('Bug report clicked!');
+                        const modal = document.getElementById('bugReportModal');
+                        if (modal) {
+                            modal.style.display = 'flex';
+                            const textarea = document.getElementById('bugReportText');
+                            if (textarea) textarea.focus();
+                        }
+                        return false;
+                    };
+                    
+                    // Modal button setup is handled by setupBugReportListeners in poker_game.js
+                    // No need to set up listeners here as it causes duplicate submissions
+                }
+            }, 2000);
+        });
+    </script>
+</body>
+</html>

@@ -107,6 +107,71 @@
     box-shadow: 0 5px 20px rgba(76, 175, 80, 0.4);
 }
 
+/* Locked/Under Construction styles */
+.game-card.locked {
+    opacity: 0.7;
+    cursor: not-allowed;
+    position: relative;
+    overflow: visible;
+}
+
+.game-card.locked::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 1;
+    border-radius: 20px;
+}
+
+.game-card.locked::after {
+    content: '🔒';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 3rem;
+    z-index: 2;
+    filter: drop-shadow(0 0 10px rgba(0, 0, 0, 0.8));
+}
+
+.game-card.locked:hover {
+    transform: none;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+}
+
+.game-card.locked .join-btn {
+    pointer-events: none;
+    opacity: 0.5;
+    background: linear-gradient(135deg, #666 0%, #444 100%);
+}
+
+.construction-banner {
+    position: absolute;
+    top: 20px;
+    right: -35px;
+    background: linear-gradient(135deg, #FF6B6B 0%, #DC143C 100%);
+    color: white;
+    padding: 0.3rem 2.5rem;
+    font-size: 0.8rem;
+    font-weight: bold;
+    transform: rotate(45deg);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    z-index: 3;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.game-card.locked .game-icon,
+.game-card.locked h3,
+.game-card.locked .game-details {
+    position: relative;
+    z-index: 2;
+}
+
 /* Animations */
 @keyframes bounce {
     0%, 100% { transform: translateY(0); }

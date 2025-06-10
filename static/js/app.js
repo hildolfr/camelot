@@ -1925,7 +1925,6 @@ function navigateToSection(section) {
 
 // Join game function
 function joinGame(gameId) {
-    // For now, just show an alert. We'll implement the actual game later
     console.log(`Joining game: ${gameId}`);
     
     // Create game configuration based on gameId
@@ -1964,9 +1963,10 @@ function joinGame(gameId) {
     if (config) {
         // Store game config and redirect to game page
         sessionStorage.setItem('gameConfig', JSON.stringify(config));
-        // For now, just log it
-        console.log('Game configuration:', config);
-        alert(`Coming soon! ${gameId} game will start with ${config.players} players.`);
+        sessionStorage.setItem('gameId', gameId);
+        
+        // Redirect to poker game page
+        window.location.href = '/game';
     }
 }
 

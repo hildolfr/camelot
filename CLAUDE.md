@@ -31,6 +31,22 @@ We will formulate all of our plans in a TODO.md file that we shall keep in the p
 We will save all of our progress in a CHANGELOG.md file we shall keep in the project root.
 When we need to make complicated plans we will create a time/dated document in the plans/ folder with an appropriate name. We will use this file as a checklist to continue progress on specific tasks. When the tasks are done the file shall be put into the archives/plans/ folder
 
+## Bug Reporting System
+Users can submit bug reports during gameplay using the bug report button (🐛) at the bottom right of the game screen.
+These reports are logged directly into the game's log file with special markers.
+
+To search for user bug reports in the logs, use:
+```bash
+grep -A10 -B2 "USER_BUG_REPORT_START" logs/poker_game_*.log
+```
+
+Or to find all bug reports with context:
+```bash
+grep -E "USER_BUG_REPORT_(START|END)" logs/poker_game_*.log
+```
+
+Bug reports include timestamp, game state, user description, and relevant game context.
+
 
 
 

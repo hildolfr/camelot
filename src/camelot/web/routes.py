@@ -19,3 +19,12 @@ async def home(request: Request):
         "index.html",
         {"request": request, "title": "Camelot Poker Calculator"}
     )
+
+
+@router.get("/game", response_class=HTMLResponse)
+async def poker_game(request: Request):
+    """Render the poker game page."""
+    return templates.TemplateResponse(
+        "poker_game.html",
+        {"request": request, "title": "Camelot Poker Game"}
+    )
