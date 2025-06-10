@@ -83,6 +83,12 @@ class CachedPokerCalculator(PokerCalculator):
                 # Add cache metadata
                 cached_result['from_cache'] = True
                 cached_result['cache_time_ms'] = cache_time
+                # Override execution time to show cache retrieval time
+                cached_result['execution_time_ms'] = cache_time
+                # Override computation source for cached results
+                cached_result['gpu_used'] = False
+                cached_result['backend'] = 'cache'
+                cached_result['device'] = None
                 return cached_result
         
         # Calculate if not cached or has dynamic params

@@ -38,12 +38,8 @@ async def calculate_poker_odds(request: CalculateRequest) -> Dict:
     then returns win/tie/loss probabilities along with detailed statistics.
     """
     try:
-        # Run calculation in dedicated user thread pool to avoid cache warming interference
-        import asyncio
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
-            calculator._user_executor,
-            calculator.calculate,
+        # Call calculate method directly
+        result = calculator.calculate(
             request.hero_hand,
             request.num_opponents,
             request.board_cards,
@@ -52,6 +48,7 @@ async def calculate_poker_odds(request: CalculateRequest) -> Dict:
             request.stack_sizes,
             request.pot_size
         )
+        
         
         # Build response with all available fields
         response_data = {
@@ -73,7 +70,8 @@ async def calculate_poker_odds(request: CalculateRequest) -> Dict:
         for key in ["position_aware_equity", "icm_equity", "multi_way_statistics", 
                     "defense_frequencies", "coordination_effects", "stack_to_pot_ratio",
                     "tournament_pressure", "fold_equity_estimates", "bubble_factor",
-                    "bluff_catching_frequency"]:
+                    "bluff_catching_frequency", "from_cache", "backend", "gpu_used", 
+                    "device", "cache_time_ms", "calculation_time_ms"]:
             if key in result:
                 response_data[key] = result[key]
         
@@ -140,3 +138,22 @@ async def get_cache_status() -> Dict:
             "warming": warming_stats if cache_manager else {}
         }
     }
+
+
+@router.post("/cache-reset")
+async def reset_cache() -> Dict:
+    """Reset the cache (debugging feature)."""
+    try:
+        # Clear the cache
+        calculator.clear_cache()
+        
+        # Reset cache manager stats if available
+        if cache_manager:
+            cache_manager.reset_stats()
+        
+        return {
+            "status": "success",
+            "message": "Cache has been reset"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to reset cache: {str(e)}")

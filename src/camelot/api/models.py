@@ -77,6 +77,14 @@ class CalculateResponse(BaseModel):
     bubble_factor: Optional[float] = Field(None, description="ICM bubble factor adjustments")
     bluff_catching_frequency: Optional[float] = Field(None, description="Optimal bluff-catching frequency")
     
+    # Caching and computation metadata
+    from_cache: Optional[bool] = Field(None, description="Whether result was retrieved from cache")
+    backend: Optional[str] = Field(None, description="Computation backend used: cache, cpu, or cuda")
+    gpu_used: Optional[bool] = Field(None, description="Whether GPU acceleration was used")
+    device: Optional[str] = Field(None, description="Specific GPU device used if applicable")
+    cache_time_ms: Optional[float] = Field(None, description="Time to retrieve from cache in milliseconds")
+    calculation_time_ms: Optional[float] = Field(None, description="Time to calculate result in milliseconds")
+    
     model_config = {
         "json_schema_extra": {
             "examples": [

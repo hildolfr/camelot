@@ -358,3 +358,21 @@ class CacheManager:
         if time_diff > 0:
             return count_diff / time_diff  # Rate per second
         return 0.0
+    
+    def reset_stats(self):
+        """Reset cache statistics (for debugging)."""
+        self.cache_stats = {
+            'preflop_cached': 0,
+            'board_cached': 0,
+            'total_time': 0,
+            'errors': 0,
+            'start_time': None,
+            'elapsed_time': 0,
+            'initial_cached': 0,
+            'new_cached': 0,
+            'total_expected': 7956,
+            'warming_this_session': 0,
+            'rolling_rate': 0
+        }
+        self._recent_cache_times = []
+        self._is_warming = False

@@ -1489,6 +1489,28 @@
             font-weight: bold;
         }
         
+        .cache-reset-btn {
+            background: rgba(255, 68, 68, 0.2);
+            border: 1px solid rgba(255, 68, 68, 0.4);
+            color: #FF4444;
+            font-size: 1.2rem;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            margin-left: 0.5rem;
+        }
+        
+        .cache-reset-btn:hover {
+            background: rgba(255, 68, 68, 0.3);
+            border-color: rgba(255, 68, 68, 0.6);
+            transform: rotate(180deg);
+        }
+        
         @keyframes pulse {
             0%, 100% { opacity: 1; transform: scale(1); }
             50% { opacity: 0.6; transform: scale(0.9); }
@@ -1534,6 +1556,9 @@
             </div>
             <div class="cache-warning">Performance may be slower during this process</div>
         </div>
+        <button id="cacheResetBtn" class="cache-reset-btn" onclick="resetCache()" title="Reset cache (debug)">
+            🔄
+        </button>
     </div>
     
     <div class="app-layout">

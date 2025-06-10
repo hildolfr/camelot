@@ -105,6 +105,14 @@ class ResultAdapter:
         if hasattr(result, 'bluff_catching_frequency'):
             adapted["bluff_catching_frequency"] = getattr(result, 'bluff_catching_frequency')
         
+        # GPU acceleration info (poker_knight v1.8.0+)
+        if hasattr(result, 'gpu_used'):
+            adapted["gpu_used"] = getattr(result, 'gpu_used', False)
+        if hasattr(result, 'backend'):
+            adapted["backend"] = getattr(result, 'backend', 'cpu')
+        if hasattr(result, 'device'):
+            adapted["device"] = getattr(result, 'device', None)
+        
         return adapted
     
     @staticmethod

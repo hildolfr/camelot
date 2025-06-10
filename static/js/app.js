@@ -648,6 +648,10 @@ function getStandardStats(data) {
                 <h4>🎯 Win Rate</h4>
                 <div class="value" style="font-size: 1.5rem;">${winPct}%</div>
             </div>
+            <div class="stat-card" style="animation: slideUp 0.5s ease-out">
+                <h4>${getComputeIcon(data)} Computed</h4>
+                <div class="value">${getComputeSource(data)}</div>
+            </div>
         </div>
         ${getHandCategoryBreakdown(data.hand_categories)}
     `;
@@ -679,8 +683,8 @@ function getAdvancedStats(data) {
                 <div class="value">${data.execution_time_ms.toFixed(0)}ms</div>
             </div>
             <div class="stat-card" style="animation: slideUp 0.5s ease-out">
-                <h4>📊 Confidence</h4>
-                <div class="value">±${((data.confidence_interval[1] - data.confidence_interval[0]) * 50).toFixed(1)}%</div>
+                <h4>${getComputeIcon(data)} Source</h4>
+                <div class="value" style="font-size: 0.9rem;">${getComputeSource(data)}</div>
             </div>
         </div>
         <div style="margin: 1rem 0; padding: 1rem; background: rgba(0,0,0,0.2); border-radius: 10px;">
@@ -727,6 +731,8 @@ function getExpertStats(data) {
                     <div>Total Equity: <strong>${(equity * 100).toFixed(1)}%</strong>${createHelpIcon('Your overall share of the pot, including half of all tie scenarios')}</div>
                     <div>Pot Odds Needed: <strong>1:${potOdds}</strong>${createHelpIcon('The minimum pot odds required to make calling profitable')}</div>
                     <div>Opponents: <strong>${data.num_opponents}</strong></div>
+                    <div>Computed: <strong>${getComputeIcon(data)} ${getComputeSource(data)}</strong></div>
+                    <div>Speed: <strong>${data.execution_time_ms.toFixed(0)}ms</strong></div>
                 </div>
             </div>
             
@@ -959,6 +965,27 @@ function getStrengthDescription(winPct) {
     if (winPct >= 35) return "⚖️ Competitive hand";
     if (winPct >= 20) return "⚠️ Proceed with caution";
     return "🚫 Very weak position";
+}
+
+// Get computation source icon
+function getComputeIcon(data) {
+    if (data.backend === 'cache') return '💾';
+    if (data.gpu_used || data.backend === 'cuda') return '🎮';
+    return '🖥️';
+}
+
+// Get computation source description
+function getComputeSource(data) {
+    if (data.backend === 'cache') {
+        return 'Cached';
+    }
+    if (data.gpu_used || data.backend === 'cuda') {
+        if (data.device) {
+            return `GPU (${data.device})`;
+        }
+        return 'GPU';
+    }
+    return 'CPU';
 }
 
 // Create help icon with tooltip
@@ -1780,6 +1807,35 @@ function startCacheStatusMonitoring() {
     
     // Then check every 2 seconds
     cacheStatusInterval = setInterval(checkCacheStatus, 2000);
+}
+
+// Reset cache function (debugging feature)
+async function resetCache() {
+    if (!confirm('Are you sure you want to reset the cache? This will clear all cached calculations.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/cache-reset', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            alert('Cache has been reset successfully!');
+            // Force reload to restart cache warming
+            window.location.reload();
+        } else {
+            alert('Failed to reset cache: ' + (data.detail || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Failed to reset cache:', error);
+        alert('Failed to reset cache: ' + error.message);
+    }
 }
 
 async function checkCacheStatus() {
