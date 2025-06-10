@@ -1900,6 +1900,80 @@ window.switchStatsLevel = switchStatsLevel;
 window.showPositionHelp = showPositionHelp;
 window.hidePositionHelp = hidePositionHelp;
 
+// Navigation functions
+function navigateToSection(section) {
+    // Update nav buttons
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.dataset.section === section) {
+            btn.classList.add('active');
+        }
+    });
+    
+    // Hide all sections
+    document.querySelectorAll('.app-section').forEach(sec => {
+        sec.style.display = 'none';
+    });
+    
+    // Show selected section
+    if (section === 'calculator') {
+        document.getElementById('calculatorSection').style.display = 'block';
+    } else if (section === 'play') {
+        document.getElementById('playSection').style.display = 'block';
+    }
+}
+
+// Join game function
+function joinGame(gameId) {
+    // For now, just show an alert. We'll implement the actual game later
+    console.log(`Joining game: ${gameId}`);
+    
+    // Create game configuration based on gameId
+    const gameConfigs = {
+        'beginner-luck': {
+            players: 2,
+            heroStack: 200,
+            opponentStacks: [200],
+            difficulty: 'easy',
+            bigBlind: 2
+        },
+        'short-stack-survival': {
+            players: 6,
+            heroStack: 20,
+            opponentStacks: [25, 30, 15, 50, 40],
+            difficulty: 'medium',
+            bigBlind: 2
+        },
+        'high-stakes': {
+            players: 4,
+            heroStack: 500,
+            opponentStacks: [450, 600, 550],
+            difficulty: 'hard',
+            bigBlind: 10
+        },
+        'tournament-bubble': {
+            players: 5,
+            heroStack: 35,
+            opponentStacks: [80, 25, 15, 45],
+            difficulty: 'expert',
+            bigBlind: 4
+        }
+    };
+    
+    const config = gameConfigs[gameId];
+    if (config) {
+        // Store game config and redirect to game page
+        sessionStorage.setItem('gameConfig', JSON.stringify(config));
+        // For now, just log it
+        console.log('Game configuration:', config);
+        alert(`Coming soon! ${gameId} game will start with ${config.players} players.`);
+    }
+}
+
+// Make navigation functions globally available
+window.navigateToSection = navigateToSection;
+window.joinGame = joinGame;
+
 // Add CSS animations
 const style = document.createElement('style');
 style.textContent = `

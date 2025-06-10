@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ title }}</title>
     <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/navigation.css">
+    <link rel="stylesheet" href="/static/css/lobby.css">
     <style>
         /* Inline critical CSS for faster initial render */
         * {
@@ -18,7 +20,7 @@
             background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
             min-height: 100vh;
             color: #fff;
-            padding: 1rem;
+            padding: 0;
             overflow-x: hidden;
             position: relative;
         }
@@ -1561,12 +1563,31 @@
         </button>
     </div>
     
-    <div class="app-layout">
-        <div class="main-content">
-            <header class="header">
-                <h1>⚔️ Camelot Poker Calculator</h1>
-                <p>Calculate your Texas Hold'em odds with the power of Poker Knight</p>
-            </header>
+    <!-- Navigation Bar -->
+    <nav class="nav-bar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <h2>⚔️ Camelot</h2>
+            </div>
+            <div class="nav-buttons">
+                <button class="nav-btn active" data-section="calculator" onclick="navigateToSection('calculator')">
+                    🧮 Calculator
+                </button>
+                <button class="nav-btn" data-section="play" onclick="navigateToSection('play')">
+                    🃏 Play Poker
+                </button>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- Calculator Section -->
+    <div id="calculatorSection" class="app-section active">
+        <div class="app-layout">
+            <div class="main-content">
+                <header class="header">
+                    <h1>Poker Calculator</h1>
+                    <p>Calculate your Texas Hold'em odds with the power of Poker Knight</p>
+                </header>
             
             <div class="calculator-card">
                 <!-- Game status display -->
@@ -1804,6 +1825,61 @@
         <p style="margin-top: 1rem; font-size: 0.85rem; opacity: 0.7; text-align: center;">
             Position affects hand ranges, betting frequencies, and overall strategy
         </p>
+    </div>
+    
+    </div> <!-- End calculator section -->
+    
+    <!-- Play Poker Section -->
+    <div id="playSection" class="app-section" style="display: none;">
+        <div class="poker-lobby">
+            <header class="lobby-header">
+                <h1>🎰 Poker Lobby</h1>
+                <p>Choose your game and test your skills against AI opponents</p>
+            </header>
+            
+            <div class="lobby-games">
+                <!-- Game scenarios will be populated here -->
+                <div class="game-card" onclick="joinGame('beginner-luck')">
+                    <div class="game-icon">🍀</div>
+                    <h3>Beginner's Luck</h3>
+                    <div class="game-details">
+                        <p>👥 2 Players • 💰 Big Stack (200 BB)</p>
+                        <p>🤖 Easy AI • Perfect for learning</p>
+                    </div>
+                    <button class="join-btn">Join Table</button>
+                </div>
+                
+                <div class="game-card" onclick="joinGame('short-stack-survival')">
+                    <div class="game-icon">⚡</div>
+                    <h3>Short Stack Survival</h3>
+                    <div class="game-details">
+                        <p>👥 6 Players • 💰 Short Stack (20 BB)</p>
+                        <p>🤖 Medium AI • Push/Fold strategy</p>
+                    </div>
+                    <button class="join-btn">Join Table</button>
+                </div>
+                
+                <div class="game-card" onclick="joinGame('high-stakes')">
+                    <div class="game-icon">💎</div>
+                    <h3>High Stakes Showdown</h3>
+                    <div class="game-details">
+                        <p>👥 4 Players • 💰 Deep Stack (500 BB)</p>
+                        <p>🤖 Hard AI • Advanced play required</p>
+                    </div>
+                    <button class="join-btn">Join Table</button>
+                </div>
+                
+                <div class="game-card" onclick="joinGame('tournament-bubble')">
+                    <div class="game-icon">🏆</div>
+                    <h3>Tournament Bubble</h3>
+                    <div class="game-details">
+                        <p>👥 5 Players • 💰 Mixed Stacks</p>
+                        <p>🤖 Expert AI • ICM pressure</p>
+                    </div>
+                    <button class="join-btn">Join Table</button>
+                </div>
+            </div>
+        </div>
     </div>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
