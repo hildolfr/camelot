@@ -111,7 +111,23 @@ class ResultAdapter:
         if hasattr(result, 'backend'):
             adapted["backend"] = getattr(result, 'backend', 'cpu')
         if hasattr(result, 'device'):
-            adapted["device"] = getattr(result, 'device', None)
+            device = getattr(result, 'device', None)
+            # Try to get a more descriptive GPU name
+            if device and 'CUDA Device' in str(device):
+                try:
+                    import subprocess
+                    # Use nvidia-smi to get GPU name
+                    output = subprocess.check_output(['nvidia-smi', '--query-gpu=name', '--format=csv,noheader,nounits'], 
+                                                   text=True, stderr=subprocess.DEVNULL)
+                    gpu_names = output.strip().split('\n')
+                    # Extract device number from string like "<CUDA Device 0>"
+                    import re
+                    match = re.search(r'CUDA Device (\d+)', str(device))
+                    if match and int(match.group(1)) < len(gpu_names):
+                        device = gpu_names[int(match.group(1))].strip()
+                except:
+                    pass  # Keep original device string if nvidia-smi fails
+            adapted["device"] = device
         
         return adapted
     
