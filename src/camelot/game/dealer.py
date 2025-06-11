@@ -6,6 +6,8 @@ from typing import List, Dict, Any, Optional
 from .poker_game import GameState, Player
 
 logger = logging.getLogger(__name__)
+# Prevent propagation to root logger (no console output)
+logger.propagate = False
 
 
 class Dealer:

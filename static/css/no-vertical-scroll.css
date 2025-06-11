@@ -1,0 +1,145 @@
+/* Fix for vertical scrollbar issues */
+
+/* Ensure no vertical scrollbars on main containers */
+html, body {
+    overflow-y: hidden !important;
+    overflow-x: hidden !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+}
+
+/* Main app section should not scroll */
+.app-section {
+    overflow-y: hidden !important;
+    overflow-x: hidden !important;
+}
+
+/* App layout should not scroll */
+.app-layout {
+    overflow-y: hidden !important;
+    overflow-x: hidden !important;
+}
+
+/* Main content should not scroll */
+.main-content {
+    overflow-y: hidden !important;
+    overflow-x: hidden !important;
+}
+
+/* Calculator card can scroll internally but hide scrollbar */
+.calculator-card {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    scrollbar-width: none !important; /* Firefox */
+    -ms-overflow-style: none !important; /* IE and Edge */
+}
+
+.calculator-card::-webkit-scrollbar {
+    display: none !important; /* Chrome, Safari, Opera */
+}
+
+/* Card grid should only scroll horizontally */
+.card-grid {
+    overflow-y: visible !important; /* Allow content to be fully visible */
+    overflow-x: auto !important;
+    max-height: none !important; /* Remove height restriction */
+    height: auto !important; /* Natural height based on content */
+}
+
+/* Hide vertical scrollbar on card grid */
+.card-grid::-webkit-scrollbar {
+    height: 6px !important;
+    width: 0 !important;
+}
+
+/* Suit rows should not cause vertical overflow */
+.suit-row {
+    overflow-y: hidden !important;
+    height: fit-content !important;
+}
+
+/* Suit cards should not cause vertical overflow */
+.suit-cards {
+    overflow-y: hidden !important;
+}
+
+/* Cards should have fixed max height */
+.card {
+    max-height: 68px !important;
+}
+
+/* Portrait orientation adjustments */
+@media (orientation: portrait) {
+    .card-grid {
+        max-height: none !important; /* Remove height restriction */
+        height: auto !important;
+    }
+    
+    /* Allow parent containers to expand in portrait mode */
+    .app-section,
+    .app-layout,
+    .main-content,
+    .calculator-card {
+        overflow-y: auto !important;
+        height: auto !important;
+        max-height: none !important;
+    }
+    
+    /* Keep body scrollable in portrait */
+    html, body {
+        overflow-y: auto !important;
+        height: auto !important;
+        min-height: 100vh !important;
+        max-height: none !important;
+    }
+}
+
+/* Portrait 1080p screens (e.g., 1080x1920) */
+@media (orientation: portrait) and (min-height: 1800px) {
+    .card-grid {
+        max-height: none !important; /* Remove height restriction */
+        height: auto !important;
+    }
+}
+
+/* Results panel should not have vertical scrollbar */
+.results-panel {
+    overflow-y: hidden !important;
+}
+
+.results {
+    overflow-y: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+.stats-content {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    scrollbar-width: none !important; /* Firefox */
+    -ms-overflow-style: none !important; /* IE and Edge */
+}
+
+.stats-content::-webkit-scrollbar {
+    display: none !important; /* Chrome, Safari, Opera */
+}
+
+/* Ensure action buttons stay at bottom */
+.action-buttons {
+    flex-shrink: 0 !important;
+}
+
+/* For mobile/responsive views */
+@media (max-width: 768px) {
+    .card-grid {
+        max-height: none !important; /* Remove height restriction */
+        height: auto !important;
+    }
+}
+
+@media (max-width: 400px) {
+    .card-grid {
+        max-height: none !important; /* Remove height restriction */
+        height: auto !important;
+    }
+}

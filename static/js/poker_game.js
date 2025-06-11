@@ -414,7 +414,44 @@ async function startNewHand() {
             // Check if game is over
             if (data.game_over) {
                 console.log('Game is over! Winner:', data.winner);
-                showGameOverScreen(data.winner, data.message);
+                // Give players time to see the final board state before showing game over
+                // Longer delay if hero won so they can savor the victory
+                const delay = data.winner === 'hero' ? 8000 : 5000;
+                console.log(`Showing game over screen in ${delay/1000} seconds...`);
+                
+                // Show a subtle countdown message
+                const countdownMsg = document.createElement('div');
+                countdownMsg.style.cssText = `
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    background: rgba(0, 0, 0, 0.8);
+                    color: #FFD700;
+                    padding: 1rem 2rem;
+                    border-radius: 10px;
+                    font-size: 1.2rem;
+                    font-weight: bold;
+                    z-index: 1000;
+                    opacity: 0;
+                    transition: opacity 0.5s ease-in;
+                `;
+                countdownMsg.textContent = data.winner === 'hero' ? 
+                    'Congratulations! Victory is yours!' : 
+                    'Game Over';
+                document.body.appendChild(countdownMsg);
+                
+                // Fade in the message after 2 seconds
+                setTimeout(() => {
+                    countdownMsg.style.opacity = '1';
+                }, 2000);
+                
+                setTimeout(() => {
+                    if (countdownMsg.parentNode) {
+                        countdownMsg.remove();
+                    }
+                    showGameOverScreen(data.winner, data.message);
+                }, delay);
                 return;
             }
             
@@ -467,6 +504,8 @@ function clearTableForNewHand() {
         chips.innerHTML = '';
     });
     
+    // Clear all bet displays for new hand
+    clearAllBetDisplays();
     
     // Remove folded class from all players
     document.querySelectorAll('.player-info').forEach(info => {
@@ -539,6 +578,8 @@ async function processAnimationQueue() {
         // Check if this is a board card animation (phase transition)
         if (animation.type === 'deal_board_card') {
             hasPhaseTransition = true;
+            // Clear bet displays when transitioning to new betting round
+            clearAllBetDisplays();
         }
         
         await playAnimation(animation);
@@ -596,7 +637,37 @@ async function playAnimation(animation) {
             // Just a delay with optional message
             if (animation.message) {
                 console.log(animation.message);
-                // Could show a temporary message on screen if desired
+                // Show message on screen for important delays
+                if (animation.message.includes('busted') || animation.message.includes('all-in')) {
+                    const messageEl = document.createElement('div');
+                    messageEl.style.cssText = `
+                        position: fixed;
+                        top: 30%;
+                        left: 50%;
+                        transform: translate(-50%, -50%);
+                        background: rgba(0, 0, 0, 0.8);
+                        color: #FFD700;
+                        padding: 1rem 2rem;
+                        border-radius: 10px;
+                        font-size: 1.2rem;
+                        font-weight: bold;
+                        z-index: 100;
+                        opacity: 0;
+                        transition: opacity 0.5s ease-in;
+                    `;
+                    messageEl.textContent = animation.message;
+                    document.body.appendChild(messageEl);
+                    
+                    setTimeout(() => {
+                        messageEl.style.opacity = '1';
+                    }, 50);
+                    
+                    // Remove after the delay
+                    setTimeout(() => {
+                        messageEl.style.opacity = '0';
+                        setTimeout(() => messageEl.remove(), 500);
+                    }, animation.delay - 500);
+                }
             }
             break;
             
@@ -709,7 +780,6 @@ async function animateBet(animation) {
     updatePlayerStack(animation.player_id, player.stack);
     
     // Update bet displays immediately
-    updateCurrentBetDisplay();
     updatePlayerBetDisplays();
     
     // Show action
@@ -794,6 +864,8 @@ async function animateAwardPot(animation) {
     
     // Reset pot display
     potAmount.textContent = '$0';
+    
+    // Note: We intentionally keep bet displays visible until next betting round
     
     playSound('win');
     await sleep(1000);
@@ -1029,9 +1101,6 @@ function updateUI() {
         // Update blinds
         blindsInfo.textContent = `$${gameState.small_blind}/$${gameState.big_blind}`;
         
-        // Update current bet display
-        updateCurrentBetDisplay();
-        
         // Update player bet displays
         updatePlayerBetDisplays();
         
@@ -1070,13 +1139,25 @@ function updateUI() {
         
         // Check if hand is over
         if (gameState.phase === 'GAME_OVER') {
-            console.log('Hand over, starting new hand in 5 seconds');
-            // Stop any ongoing animations before starting new hand
-            setTimeout(() => {
-                animationQueue = [];
-                isAnimating = false;
-                startNewHand();
-            }, 5000);
+            console.log('Hand is over - checking if game continues...');
+            // Count players with chips to determine if game is truly over
+            const playersWithChips = gameState.players.filter(p => p.stack > 0).length;
+            
+            if (playersWithChips <= 1) {
+                console.log('Game is truly over - only one player has chips');
+                // Trigger startNewHand which will detect game over and show the screen
+                setTimeout(() => {
+                    startNewHand();
+                }, 2000);
+            } else {
+                console.log('Hand is over but game continues - starting new hand in 5 seconds');
+                // Multiple players still have chips, continue the game
+                setTimeout(() => {
+                    animationQueue = [];
+                    isAnimating = false;
+                    startNewHand();
+                }, 5000);
+            }
         } else {
             // Log current game state to help debug phase skipping
             console.log('Current game state after UI update:');
@@ -1157,36 +1238,38 @@ document.getElementById('betSlider')?.addEventListener('input', (e) => {
     document.getElementById('betAmount').textContent = e.target.value;
 });
 
-// Update current bet display
-function updateCurrentBetDisplay() {
-    const currentBetDisplay = document.getElementById('currentBetDisplay');
-    const currentBetAmount = document.getElementById('currentBetAmount');
-    
-    if (!currentBetDisplay || !currentBetAmount || !gameState) return;
-    
-    // Show current bet if there's an active bet greater than 0
-    if (gameState.current_bet > 0) {
-        currentBetDisplay.style.display = 'block';
-        currentBetAmount.textContent = `$${gameState.current_bet}`;
-    } else {
-        currentBetDisplay.style.display = 'none';
-    }
-}
 
 // Update player bet displays
 function updatePlayerBetDisplays() {
     if (!gameState || !gameState.players) return;
     
+    // Determine if we're in a betting round with actual bets (not just blinds)
+    const isPreFlopBlinds = gameState.phase === 'PRE_FLOP' && 
+                           gameState.current_bet <= gameState.big_blind;
+    
     gameState.players.forEach(player => {
         const betDisplay = document.getElementById(`bet_${player.id}`);
         if (betDisplay) {
-            if (player.current_bet > 0 && !player.has_folded) {
+            // Show bet if player has chips in pot and hasn't folded
+            // Don't show during pre-flop if it's just blinds
+            const shouldShowBet = player.current_bet > 0 && 
+                                !player.has_folded && 
+                                (!isPreFlopBlinds || player.current_bet > gameState.big_blind);
+            
+            if (shouldShowBet) {
                 betDisplay.style.display = 'block';
                 betDisplay.querySelector('.bet-amount').textContent = `$${player.current_bet}`;
             } else {
                 betDisplay.style.display = 'none';
             }
         }
+    });
+}
+
+// Clear all bet displays
+function clearAllBetDisplays() {
+    document.querySelectorAll('.player-bet-display').forEach(display => {
+        display.style.display = 'none';
     });
 }
 
@@ -1368,12 +1451,23 @@ async function triggerAIAction() {
             
             // Check if hand is over
             if (gameState.phase === 'GAME_OVER') {
-                console.log('Game phase is GAME_OVER, starting new hand');
-                setTimeout(() => {
-                    animationQueue = [];
-                    isAnimating = false;
-                    startNewHand();
-                }, 5000);
+                console.log('Hand is over after AI action - checking if game continues...');
+                const playersWithChips = gameState.players.filter(p => p.stack > 0).length;
+                
+                if (playersWithChips <= 1) {
+                    console.log('Game is truly over - only one player has chips');
+                    // Trigger startNewHand which will detect game over and show the screen
+                    setTimeout(() => {
+                        startNewHand();
+                    }, 2000);
+                } else {
+                    console.log('Hand is over but game continues - starting new hand in 5 seconds');
+                    setTimeout(() => {
+                        animationQueue = [];
+                        isAnimating = false;
+                        startNewHand();
+                    }, 5000);
+                }
             }
         } else {
             console.error('AI action failed:', data.error);
@@ -1403,7 +1497,7 @@ function leaveGame() {
 function showGameOverScreen(winnerId, message) {
     console.log('Showing game over screen');
     
-    // Create game over overlay
+    // Create game over overlay with fade-in animation
     const overlay = document.createElement('div');
     overlay.style.cssText = `
         position: fixed;
@@ -1417,7 +1511,14 @@ function showGameOverScreen(winnerId, message) {
         align-items: center;
         justify-content: center;
         z-index: 10000;
+        opacity: 0;
+        transition: opacity 1s ease-in;
     `;
+    
+    // Trigger fade-in after adding to DOM
+    setTimeout(() => {
+        overlay.style.opacity = '1';
+    }, 50);
     
     const content = document.createElement('div');
     content.style.cssText = `

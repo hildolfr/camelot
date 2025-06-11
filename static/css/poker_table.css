@@ -130,47 +130,7 @@
     animation: tableGlow 3s ease-in-out infinite;
 }
 
-/* Current Bet Display */
-.current-bet-display {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: rgba(0, 0, 0, 0.9);
-    border: 3px solid #FFD700;
-    border-radius: 15px;
-    padding: 1rem 2rem;
-    text-align: center;
-    box-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
-    z-index: 20;
-    animation: pulseGold 2s ease-in-out infinite;
-}
-
-.current-bet-label {
-    font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.7);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-bottom: 0.3rem;
-}
-
-.current-bet-amount {
-    font-size: 2rem;
-    font-weight: bold;
-    color: #FFD700;
-    text-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
-}
-
-@keyframes pulseGold {
-    0%, 100% { 
-        box-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
-        transform: translate(-50%, -50%) scale(1);
-    }
-    50% { 
-        box-shadow: 0 0 40px rgba(255, 215, 0, 0.7);
-        transform: translate(-50%, -50%) scale(1.02);
-    }
-}
+/* Removed central current bet display - now using per-player displays */
 
 /* Pot Display - positioned to the right side of the table */
 .pot-display {
@@ -545,25 +505,26 @@ body[data-player-count="2"] .player-seat[data-position="1"] .player-cards {
     align-items: center;
 }
 
-/* Player bet display */
+/* Player bet display - smaller and floating */
 .player-bet-display {
     position: absolute;
-    top: -80px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.9);
-    border: 2px solid #4CAF50;
-    border-radius: 20px;
-    padding: 0.3rem 0.8rem;
+    top: -25px;
+    right: -10px;
+    background: rgba(0, 0, 0, 0.85);
+    border: 1px solid #FFD700;
+    border-radius: 12px;
+    padding: 0.2rem 0.5rem;
     z-index: 10;
-    box-shadow: 0 0 15px rgba(76, 175, 80, 0.5);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    font-size: 0.85rem;
+    min-width: 40px;
+    text-align: center;
 }
 
 .player-bet-display .bet-amount {
-    color: #4CAF50;
+    color: #FFD700;
     font-weight: bold;
-    font-size: 1.1rem;
-    text-shadow: 0 0 5px rgba(76, 175, 80, 0.8);
+    text-shadow: 0 0 3px rgba(255, 215, 0, 0.6);
 }
 
 .poker-chip {

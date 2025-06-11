@@ -11,8 +11,12 @@ import logging
 import os
 from datetime import datetime
 
-# Set up both console and file logging
+from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
+
+# Set up file-only logging for poker game
 logger = logging.getLogger(__name__)
+# Prevent propagation to root logger (no console output)
+logger.propagate = False
 
 # Create logs directory if it doesn't exist
 # Go up to camelot root directory
@@ -24,14 +28,32 @@ project_root = os.path.dirname(src_dir)  # .../camelot/
 log_dir = os.path.join(project_root, 'logs')
 os.makedirs(log_dir, exist_ok=True)
 
-# Create a detailed game log file with timestamp
-log_filename = os.path.join(log_dir, f'poker_game_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')
-file_handler = logging.FileHandler(log_filename)
+# Use rotating file handler - max 10MB per file, keep 5 backup files
+log_filename = os.path.join(log_dir, 'poker_game.log')
+file_handler = RotatingFileHandler(
+    log_filename,
+    maxBytes=10*1024*1024,  # 10MB
+    backupCount=5,  # Keep 5 old files
+    encoding='utf-8'
+)
 file_handler.setLevel(logging.DEBUG)
 file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 file_handler.setFormatter(file_formatter)
 logger.addHandler(file_handler)
 logger.setLevel(logging.DEBUG)
+
+# Also add a daily rotating handler for bug reports specifically
+bug_report_filename = os.path.join(log_dir, 'bug_reports.log')
+bug_handler = TimedRotatingFileHandler(
+    bug_report_filename,
+    when='midnight',  # Rotate daily
+    interval=1,
+    backupCount=30,  # Keep 30 days of bug reports
+    encoding='utf-8'
+)
+bug_handler.setLevel(logging.ERROR)  # Only ERROR level (bug reports)
+bug_handler.setFormatter(file_formatter)
+logger.addHandler(bug_handler)
 
 logger.info(f"\n{'='*80}\nNEW POKER GAME SESSION STARTED\nLog file: {log_filename}\n{'='*80}")
 
@@ -167,7 +189,7 @@ class PokerGame:
         # Hero player (human)
         hero = Player(
             id="hero",
-            name="You",
+            name="Hero",
             stack=self.config['heroStack'] * self.config['bigBlind'],
             position=0,
             is_ai=False
@@ -231,6 +253,13 @@ class PokerGame:
             }
         
         self.state.hand_number += 1
+        
+        # Reset phase to WAITING at the start of new hand
+        self.state.phase = GamePhase.WAITING
+        
+        # Reset betting state
+        self.state.current_bet = 0
+        self.state.min_raise = self.state.big_blind
         
         # Move dealer button (skip players with no chips)
         self.state.dealer_position = self._get_next_active_dealer_position()
@@ -691,12 +720,15 @@ class PokerGame:
         # Check if all players are all-in (no one can act)
         if self.state.action_on == -1:
             active_players = [p for p in self.state.players if not p.has_folded and p.stack > 0]
-            if len(active_players) == 0:
+            players_in_hand = [p for p in self.state.players if not p.has_folded]
+            
+            # If all remaining players are all-in (including when one will bust the other)
+            if len(active_players) == 0 and len(players_in_hand) > 1:
                 logger.info("All players are all-in - automatically advancing to next phase")
                 # Add a small delay animation before advancing
                 animations.append({
                     "type": "delay",
-                    "delay": 1000,
+                    "delay": 1500,
                     "message": "All players all-in - dealing remaining cards"
                 })
                 
@@ -800,8 +832,20 @@ class PokerGame:
         logger.info("Hand complete - phase set to GAME_OVER")
         
         # Log final player stacks
+        busted_players = []
         for player in self.state.players:
             logger.info(f"{player.name} final stack: ${player.stack}")
+            if player.stack == 0:
+                busted_players.append(player)
+        
+        # If someone got busted, add extra delay so players can see why
+        if busted_players:
+            logger.info(f"Player(s) busted: {[p.name for p in busted_players]}")
+            animations.append({
+                "type": "delay",
+                "delay": 3000,
+                "message": "Player busted! Showing final board..."
+            })
         
         return {"animations": animations}
     
@@ -914,14 +958,41 @@ class PokerGame:
                 logger.info(f"  {p.name}: bet ${p.current_bet}, folded={p.has_folded}")
         
         if not bet_amounts:
-            # If no bets from non-folded players, check if there are any bets at all
-            total_bets = sum(p.current_bet for p in self.state.players)
-            if total_bets > 0:
-                # Create a pot with the total bets and the remaining player as eligible
-                remaining_players = [p.id for p in self.state.players if not p.has_folded]
-                if remaining_players:
-                    self.state.pots = [Pot(amount=total_bets, eligible_players=remaining_players)]
-                    logger.info(f"Created single pot: ${total_bets} for remaining player(s)")
+            # If no bets from non-folded players (everyone folded), handle uncalled bets
+            remaining_players = [p for p in self.state.players if not p.has_folded]
+            if len(remaining_players) == 1 and sum(p.current_bet for p in self.state.players) > 0:
+                # Find the highest bet among folded players (this is what was "called")
+                winner = remaining_players[0]
+                folded_bets = [p.current_bet for p in self.state.players if p.has_folded and p.current_bet > 0]
+                
+                if folded_bets:
+                    # The maximum anyone called is the highest bet from folded players
+                    max_called = max(folded_bets)
+                    
+                    # Winner collects the called amount from each player (including themselves)
+                    pot_size = 0
+                    for p in self.state.players:
+                        contribution = min(p.current_bet, max_called)
+                        pot_size += contribution
+                    
+                    # Create pot with only the called amounts
+                    self.state.pots = [Pot(amount=pot_size, eligible_players=[winner.id])]
+                    logger.info(f"Everyone folded. Pot: ${pot_size} (max called: ${max_called})")
+                    
+                    # Return uncalled portion to the winner
+                    uncalled = winner.current_bet - max_called
+                    if uncalled > 0:
+                        winner.stack += uncalled
+                        logger.info(f"Returned uncalled bet of ${uncalled} to {winner.name}")
+                        # Adjust the winner's current bet to reflect only the called portion
+                        winner.current_bet = max_called
+                else:
+                    # No one else had any bets (e.g., everyone folded pre-flop to BB)
+                    # Winner just gets their own bet back
+                    self.state.pots = []
+                    winner.stack += winner.current_bet
+                    logger.info(f"No callers. Returned ${winner.current_bet} to {winner.name}")
+                    winner.current_bet = 0
             return
         
         # Sort bet amounts ascending

@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 import asyncio
 import logging
+import time
 
 from src.camelot.api.calculator import router as api_router
 from src.camelot.api import calculator as calc_module
@@ -65,11 +66,67 @@ async def startup_event():
         # Start cache warming in background - don't await!
         asyncio.create_task(initialize_cache_background(cache_manager))
         print("📊 Cache warming started in background")
+        
+        # Start periodic cache statistics logging
+        asyncio.create_task(periodic_cache_stats(cache_storage))
+        print("📈 Periodic cache statistics logging enabled (every 15s)")
     else:
         print("💾 Cache warming disabled")
     
     print("🃏 Poker Knight module ready for calculations")
     print("📡 API docs available at /api/docs")
+
+
+async def periodic_cache_stats(cache_storage):
+    """Log cache statistics every 15 seconds."""
+    last_total_requests = 0
+    last_time = time.time()
+    
+    # Base scenarios: 1326 hands * 6 opponents = 7956
+    # But we can have 3 simulation modes, so theoretical max is 7956 * 3 = 23868
+    base_scenarios = 7956  # 1326 unique starting hands * 6 opponent counts
+    
+    while True:
+        try:
+            await asyncio.sleep(15)  # Wait 15 seconds
+            
+            # Get cache statistics
+            stats = cache_storage.get_stats()
+            sqlite_entries = stats.get('sqlite_entries', 0)
+            
+            # Stop logging if we've reached or exceeded the base scenarios
+            if sqlite_entries >= base_scenarios:
+                logger.info(f"Cache fully populated with {sqlite_entries:,} entries. Stopping periodic updates.")
+                break
+            
+            # Calculate fill rate based on base scenarios
+            fill_rate = (sqlite_entries / base_scenarios * 100) if base_scenarios > 0 else 0
+            
+            # Calculate solution rate
+            current_time = time.time()
+            time_diff = current_time - last_time
+            total_requests = stats.get('memory_hits', 0) + stats.get('sqlite_hits', 0) + stats.get('misses', 0)
+            requests_diff = total_requests - last_total_requests
+            
+            # Calculate solutions per minute
+            solutions_per_minute = (requests_diff / time_diff * 60) if time_diff > 0 else 0
+            
+            # Update for next iteration
+            last_total_requests = total_requests
+            last_time = current_time
+            
+            # Format the output
+            print(f"\n📊 Cache Status Update:")
+            print(f"├─ SQLite entries: {sqlite_entries:,} / {base_scenarios:,} ({fill_rate:.1f}% fill rate)")
+            print(f"├─ Memory entries: {stats.get('memory_entries', 0):,} (limit: {stats.get('memory_limit_mb', 0):.0f}MB)")
+            print(f"├─ Hit rate: {stats.get('hit_rate', 0):.1f}%")
+            print(f"├─ Solution rate: {solutions_per_minute:.1f} solutions/min")
+            print(f"├─ Cache hits: {stats.get('memory_hits', 0) + stats.get('sqlite_hits', 0):,} (Memory: {stats.get('memory_hits', 0):,}, SQLite: {stats.get('sqlite_hits', 0):,})")
+            print(f"├─ Cache misses: {stats.get('misses', 0):,}")
+            print(f"└─ DB size: {stats.get('sqlite_size_mb', 0):.1f}MB\n")
+            
+        except Exception as e:
+            logger.error(f"Error logging cache stats: {e}")
 
 
 async def initialize_cache_background(cache_manager):
@@ -100,5 +157,18 @@ if __name__ == "__main__":
         reload=config.RELOAD,
         log_level=config.LOG_LEVEL.lower(),
         # Exclude cache files from file watcher
-        reload_excludes=["*.db", "*.db-journal", "*_cache*", "*.log"]
+        reload_excludes=[
+            "*.db", 
+            "*.db-journal", 
+            "*_cache*", 
+            "*.log",
+            "logs/*",  # Exclude entire logs directory
+            "*.pyc",   # Compiled Python files
+            "__pycache__/*",  # Python cache directories
+            "static/*",  # Static files don't need server reload
+            "*.md",  # Documentation changes don't need reload
+            "*.txt",  # Text files
+            "venv/*",  # Virtual environment
+            ".git/*",  # Git directory
+        ]
     )

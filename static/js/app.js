@@ -8,6 +8,270 @@ const SUITS = [
     { symbol: '♣', name: 'clubs', color: 'black' }
 ];
 
+// Sound system for enhanced feedback
+class SoundManager {
+    constructor() {
+        this.enabled = localStorage.getItem('soundEnabled') !== 'false';
+        this.audioContext = null;
+        this.sounds = {};
+        this.initialized = false;
+    }
+    
+    async init() {
+        if (this.initialized) return;
+        
+        try {
+            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // Create synthetic sounds using Web Audio API
+            this.sounds = {
+                cardSelect: this.createCardSelectSound(),
+                cardDeselect: this.createCardDeselectSound(),
+                calculate: this.createCalculateSound(),
+                success: this.createSuccessSound(),
+                error: this.createErrorSound(),
+                hover: this.createHoverSound()
+            };
+            
+            this.initialized = true;
+        } catch (e) {
+            console.log('Audio initialization failed:', e);
+        }
+    }
+    
+    createCardSelectSound() {
+        return () => {
+            if (!this.enabled || !this.audioContext) return;
+            
+            const oscillator = this.audioContext.createOscillator();
+            const gainNode = this.audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(this.audioContext.destination);
+            
+            oscillator.frequency.setValueAtTime(800, this.audioContext.currentTime);
+            oscillator.frequency.exponentialRampToValueAtTime(1200, this.audioContext.currentTime + 0.1);
+            
+            gainNode.gain.setValueAtTime(0.3, this.audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.1);
+            
+            oscillator.start(this.audioContext.currentTime);
+            oscillator.stop(this.audioContext.currentTime + 0.1);
+        };
+    }
+    
+    createCardDeselectSound() {
+        return () => {
+            if (!this.enabled || !this.audioContext) return;
+            
+            const oscillator = this.audioContext.createOscillator();
+            const gainNode = this.audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(this.audioContext.destination);
+            
+            oscillator.frequency.setValueAtTime(1200, this.audioContext.currentTime);
+            oscillator.frequency.exponentialRampToValueAtTime(600, this.audioContext.currentTime + 0.1);
+            
+            gainNode.gain.setValueAtTime(0.2, this.audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.1);
+            
+            oscillator.start(this.audioContext.currentTime);
+            oscillator.stop(this.audioContext.currentTime + 0.1);
+        };
+    }
+    
+    createCalculateSound() {
+        return () => {
+            if (!this.enabled || !this.audioContext) return;
+            
+            const oscillator = this.audioContext.createOscillator();
+            const gainNode = this.audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(this.audioContext.destination);
+            
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(400, this.audioContext.currentTime);
+            oscillator.frequency.exponentialRampToValueAtTime(800, this.audioContext.currentTime + 0.2);
+            
+            gainNode.gain.setValueAtTime(0.3, this.audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.3);
+            
+            oscillator.start(this.audioContext.currentTime);
+            oscillator.stop(this.audioContext.currentTime + 0.3);
+        };
+    }
+    
+    createSuccessSound() {
+        return () => {
+            if (!this.enabled || !this.audioContext) return;
+            
+            const notes = [523.25, 659.25, 783.99]; // C5, E5, G5
+            notes.forEach((freq, i) => {
+                const oscillator = this.audioContext.createOscillator();
+                const gainNode = this.audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(this.audioContext.destination);
+                
+                oscillator.frequency.value = freq;
+                gainNode.gain.setValueAtTime(0.2, this.audioContext.currentTime + i * 0.1);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + i * 0.1 + 0.2);
+                
+                oscillator.start(this.audioContext.currentTime + i * 0.1);
+                oscillator.stop(this.audioContext.currentTime + i * 0.1 + 0.2);
+            });
+        };
+    }
+    
+    createErrorSound() {
+        return () => {
+            if (!this.enabled || !this.audioContext) return;
+            
+            const oscillator = this.audioContext.createOscillator();
+            const gainNode = this.audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(this.audioContext.destination);
+            
+            oscillator.type = 'sawtooth';
+            oscillator.frequency.value = 200;
+            
+            gainNode.gain.setValueAtTime(0.3, this.audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.2);
+            
+            oscillator.start(this.audioContext.currentTime);
+            oscillator.stop(this.audioContext.currentTime + 0.2);
+        };
+    }
+    
+    createHoverSound() {
+        return () => {
+            if (!this.enabled || !this.audioContext) return;
+            
+            const oscillator = this.audioContext.createOscillator();
+            const gainNode = this.audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(this.audioContext.destination);
+            
+            oscillator.frequency.value = 2000;
+            gainNode.gain.setValueAtTime(0.05, this.audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.03);
+            
+            oscillator.start(this.audioContext.currentTime);
+            oscillator.stop(this.audioContext.currentTime + 0.03);
+        };
+    }
+    
+    play(soundName) {
+        if (!this.initialized) {
+            this.init().then(() => {
+                if (this.sounds[soundName]) {
+                    this.sounds[soundName]();
+                }
+            });
+        } else if (this.sounds[soundName]) {
+            this.sounds[soundName]();
+        }
+    }
+    
+    toggle() {
+        this.enabled = !this.enabled;
+        localStorage.setItem('soundEnabled', this.enabled);
+        return this.enabled;
+    }
+}
+
+// Enhanced haptic feedback system
+class HapticManager {
+    constructor() {
+        this.enabled = 'vibrate' in navigator;
+    }
+    
+    select() {
+        if (this.enabled) {
+            navigator.vibrate([10, 5, 15]);
+        }
+    }
+    
+    deselect() {
+        if (this.enabled) {
+            navigator.vibrate(8);
+        }
+    }
+    
+    success() {
+        if (this.enabled) {
+            navigator.vibrate([50, 30, 50, 30, 100]);
+        }
+    }
+    
+    error() {
+        if (this.enabled) {
+            navigator.vibrate([100, 50, 100]);
+        }
+    }
+    
+    hover() {
+        if (this.enabled) {
+            navigator.vibrate(3);
+        }
+    }
+}
+
+// Initialize sound and haptic managers
+const soundManager = new SoundManager();
+const hapticManager = new HapticManager();
+
+// Utility function for debouncing
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Check viewport and apply optimizations for 1080p displays
+function checkViewportAndOptimize() {
+    const viewportHeight = window.innerHeight;
+    const viewportWidth = window.innerWidth;
+    const body = document.body;
+    
+    // Apply compact mode class for 1080p and similar displays
+    if (viewportHeight <= 1080 && viewportHeight >= 900) {
+        body.classList.add('compact-1080p');
+        
+        // Additional runtime optimizations
+        const calculatorCard = document.querySelector('.calculator-card');
+        if (calculatorCard) {
+            // Ensure calculator card doesn't overflow
+            const navHeight = 60;
+            const headerHeight = document.querySelector('.header')?.offsetHeight || 0;
+            const actionsHeight = document.querySelector('.action-buttons')?.offsetHeight || 0;
+            const padding = 24; // Account for padding
+            
+            const maxCardHeight = viewportHeight - navHeight - headerHeight - actionsHeight - padding;
+            calculatorCard.style.maxHeight = `${maxCardHeight}px`;
+        }
+    } else {
+        body.classList.remove('compact-1080p');
+        const calculatorCard = document.querySelector('.calculator-card');
+        if (calculatorCard) {
+            calculatorCard.style.maxHeight = '';
+        }
+    }
+    
+    // Log viewport info for debugging
+    console.log(`Viewport: ${viewportWidth}x${viewportHeight}, Compact mode: ${body.classList.contains('compact-1080p')}`);
+}
+
 // State management
 const state = {
     selectedCards: [], // Ordered list of selected cards
@@ -25,6 +289,15 @@ const state = {
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', () => {
+    // Check for 1080p displays and apply compact mode
+    checkViewportAndOptimize();
+    window.addEventListener('resize', debounce(checkViewportAndOptimize, 250));
+    
+    // Initialize sound manager on first user interaction
+    document.addEventListener('click', () => {
+        soundManager.init();
+    }, { once: true });
+    
     createParticles();
     generateCardGrid();
     setupEventListeners();
@@ -54,8 +327,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Setup help icon interactions for mobile
     setupHelpIconInteractions();
     
-    // Start monitoring cache status
-    startCacheStatusMonitoring();
 });
 
 // Create animated background particles
@@ -138,6 +409,21 @@ function createCardElement(cardId, rank, suit) {
     
     card.addEventListener('click', () => handleCardClick(cardId));
     
+    // Add hover sound effect
+    let hoverTimeout;
+    card.addEventListener('mouseenter', () => {
+        // Debounce hover sound to prevent spam
+        clearTimeout(hoverTimeout);
+        hoverTimeout = setTimeout(() => {
+            soundManager.play('hover');
+            hapticManager.hover();
+        }, 50);
+    });
+    
+    card.addEventListener('mouseleave', () => {
+        clearTimeout(hoverTimeout);
+    });
+    
     // Add entrance animation
     card.style.animationDelay = `${Math.random() * 0.3}s`;
     card.classList.add('flip-in');
@@ -145,24 +431,34 @@ function createCardElement(cardId, rank, suit) {
     return card;
 }
 
-// Handle card selection with new logic
+// Handle card selection with enhanced feedback
 function handleCardClick(cardId) {
     const cardIndex = state.selectedCards.indexOf(cardId);
     
     if (cardIndex !== -1) {
         // Card is already selected, remove it
         state.selectedCards.splice(cardIndex, 1);
+        console.log('Card removed:', cardId, 'Selected cards:', state.selectedCards);
+        
+        // Play deselect sound and haptic
+        soundManager.play('cardDeselect');
+        hapticManager.deselect();
+        
         updateCardVisuals();
     } else if (state.selectedCards.length < 7) {
         // Add the card
         state.selectedCards.push(cardId);
-        updateCardVisuals();
+        console.log('Card added:', cardId, 'Selected cards:', state.selectedCards);
         
-        // Trigger haptic feedback on mobile
-        if (window.navigator.vibrate) {
-            window.navigator.vibrate(10);
-        }
+        // Play select sound and haptic
+        soundManager.play('cardSelect');
+        hapticManager.select();
+        
+        updateCardVisuals();
     } else {
+        // Play error sound and haptic
+        soundManager.play('error');
+        hapticManager.error();
         showMessage('Maximum 7 cards (2 hand + 5 board)', 'error');
     }
 }
@@ -171,10 +467,17 @@ function handleCardClick(cardId) {
 function updateCardVisuals() {
     // Reset all cards
     document.querySelectorAll('.card').forEach(card => {
+        // Remove animation classes first to ensure animation completes
+        card.style.animation = 'none';
+        card.style.animationDelay = ''; // Reset animation delay
         card.classList.remove('selected', 'hero-card', 'board-card', 'flip-in');
         // Reset any inline styles that might have been applied
         card.style.transform = '';
-        card.style.opacity = '';
+        card.style.opacity = '1'; // Explicitly set opacity to 1 to ensure visibility
+        card.style.display = ''; // Reset display property
+        card.style.visibility = ''; // Reset visibility property
+        // Force browser to apply the styles
+        card.offsetHeight; // Trigger reflow
         const badge = card.querySelector('.selection-badge');
         if (badge) badge.remove();
     });
@@ -182,16 +485,30 @@ function updateCardVisuals() {
     // Update selected cards
     state.selectedCards.forEach((cardId, index) => {
         const card = document.querySelector(`[data-card="${cardId}"]`);
+        console.log(`Processing card ${index + 1}:`, cardId, 'Element found:', !!card);
         if (card) {
+            // Ensure card is visible before animation
+            card.style.opacity = '1';
+            card.style.display = '';
+            card.style.visibility = 'visible';
+            
             // Add classes with a slight delay for animation
             setTimeout(() => {
+                console.log(`Applying styles to card ${index + 1}:`, cardId);
+                // Double-check visibility in case something else modified it
+                card.style.opacity = '1';
+                card.style.display = '';
+                card.style.visibility = 'visible';
+                
                 card.classList.add('selected');
                 
                 // Add appropriate class based on position
                 if (index < 2) {
                     card.classList.add('hero-card');
+                    console.log(`Card ${index + 1} marked as hero-card`);
                 } else {
                     card.classList.add('board-card');
+                    console.log(`Card ${index + 1} marked as board-card`);
                 }
                 
                 // Add selection badge with number
@@ -199,7 +516,31 @@ function updateCardVisuals() {
                 badge.className = 'selection-badge';
                 badge.textContent = index + 1;
                 card.appendChild(badge);
+                
+                // Force visibility with important styles
+                card.style.setProperty('opacity', '1', 'important');
+                card.style.setProperty('display', 'flex', 'important');
+                card.style.setProperty('visibility', 'visible', 'important');
+                
+                // Final visibility check
+                const computedStyle = window.getComputedStyle(card);
+                const rect = card.getBoundingClientRect();
+                console.log(`Card ${index + 1} final state:`, {
+                    opacity: computedStyle.opacity,
+                    display: computedStyle.display,
+                    visibility: computedStyle.visibility,
+                    classList: card.classList.toString(),
+                    position: {
+                        top: rect.top,
+                        left: rect.left,
+                        width: rect.width,
+                        height: rect.height,
+                        isVisible: rect.width > 0 && rect.height > 0
+                    }
+                });
             }, index * 30); // Stagger the animations
+        } else {
+            console.error(`Card element not found for:`, cardId);
         }
     });
     
@@ -306,8 +647,20 @@ function setupEventListeners() {
 
 // Handle responsive layout
 function handleResize() {
-    // Layout is now handled by CSS media queries
-    // This function kept for potential future use
+    // Re-display results if they were showing
+    if (state.lastCalculationData) {
+        const resultsPanel = document.getElementById('resultsPanel');
+        const mobileResults = document.getElementById('mobileResults');
+        
+        // Check if either panel was showing
+        const wasShowingResults = resultsPanel.classList.contains('active') || 
+                                 mobileResults.style.display === 'block';
+        
+        if (wasShowingResults) {
+            // Re-display with correct panel for current viewport
+            displayResults(state.lastCalculationData);
+        }
+    }
 }
 
 // Update UI state
@@ -382,13 +735,16 @@ function updateUI() {
     }
 }
 
-// Calculate odds with enhanced visuals
+// Calculate odds with enhanced visuals and sound
 async function calculateOdds() {
     const loading = document.getElementById('loading');
     const heroCards = state.selectedCards.slice(0, 2);
     const boardCards = state.selectedCards.slice(2);
     
-    // Show loading
+    // Play calculate sound
+    soundManager.play('calculate');
+    
+    // Show loading with animation
     loading.classList.add('active');
     
     // Prepare request data
@@ -427,21 +783,44 @@ async function calculateOdds() {
             // Handle validation errors specifically
             if (response.status === 422) {
                 const errorDetail = data.detail?.[0]?.msg || data.detail || 'Invalid card configuration';
+                soundManager.play('error');
+                hapticManager.error();
                 showMessage(`Validation error: ${errorDetail}`, 'error');
             } else {
+                soundManager.play('error');
+                hapticManager.error();
                 showMessage(`Server error: ${response.status}`, 'error');
             }
             return;
         }
         
         if (data.success) {
+            console.log('Calculation successful, data received:', data);
+            console.log('Hand categories in response:', data.hand_categories);
+            console.log('Is from cache?', data.from_cache || false);
+            console.log('Backend used:', data.backend || 'unknown');
+            
+            // Check if hand_categories is empty
+            if (data.hand_categories && Object.keys(data.hand_categories).length === 0) {
+                console.warn('WARNING: hand_categories is empty object!');
+                console.log('Full response data:', JSON.stringify(data, null, 2));
+            }
+            
+            // Play success sound and haptic
+            soundManager.play('success');
+            hapticManager.success();
+            
             state.lastCalculationData = data; // Store for tab switching
             displayResults(data);
             addToHistory(data);
         } else {
+            soundManager.play('error');
+            hapticManager.error();
             showMessage(data.error || 'Calculation failed', 'error');
         }
     } catch (error) {
+        soundManager.play('error');
+        hapticManager.error();
         showMessage('Network error: ' + error.message, 'error');
     } finally {
         loading.classList.remove('active');
@@ -450,20 +829,28 @@ async function calculateOdds() {
 
 // Display results with enhanced animations
 function displayResults(data) {
-    const isLandscape = window.innerWidth > 1024;
+    const viewportWidth = window.innerWidth;
+    const resultsPanel = document.getElementById('resultsPanel');
+    const mobileResults = document.getElementById('mobileResults');
     
-    if (isLandscape) {
-        // Show side panel
-        document.getElementById('resultsPanel').classList.add('active');
+    // Clear any inline styles that might interfere
+    resultsPanel.style.removeProperty('display');
+    mobileResults.style.removeProperty('display');
+    
+    if (viewportWidth > 1024) {
+        // Desktop view
+        resultsPanel.classList.add('active');
+        // Force hide mobile results with important
+        mobileResults.style.setProperty('display', 'none', 'important');
         updateResultsDisplay('', data);
-        // Hide mobile results if they were visible
-        document.getElementById('mobileResults').style.display = 'none';
     } else {
+        // Mobile/tablet view
+        resultsPanel.classList.remove('active');
+        // Force hide desktop panel with important
+        resultsPanel.style.setProperty('display', 'none', 'important');
         // Show mobile results
-        document.getElementById('mobileResults').style.display = 'block';
+        mobileResults.style.setProperty('display', 'block', 'important');
         updateResultsDisplay('Mobile', data);
-        // Make sure desktop panel is hidden
-        document.getElementById('resultsPanel').classList.remove('active');
     }
 }
 
@@ -588,13 +975,34 @@ function updateResultsDisplay(suffix, data) {
 // Update stats content based on selected level
 function updateStatsContent(suffix, data, level) {
     const details = document.getElementById('resultDetails' + suffix);
+    console.log('updateStatsContent called:', {suffix, level, hasHandCategories: !!data.hand_categories});
+    
+    // Add a test message
+    if (!details) {
+        console.error('Result details element not found! Suffix:', suffix);
+        return;
+    }
+    
+    // Clean up any existing hand category charts before updating content
+    console.log('Cleaning up existing charts, total stored:', Object.keys(handCategoryCharts).length);
+    Object.keys(handCategoryCharts).forEach(chartId => {
+        try {
+            handCategoryCharts[chartId].destroy();
+            delete handCategoryCharts[chartId];
+        } catch (e) {
+            console.warn('Failed to destroy chart:', chartId, e);
+        }
+    });
     
     switch(level) {
         case 'basic':
             details.innerHTML = getBasicStats(data);
             break;
         case 'standard':
-            details.innerHTML = getStandardStats(data);
+            const standardHTML = getStandardStats(data);
+            console.log('Standard stats HTML length:', standardHTML.length);
+            console.log('Contains hand categories section:', standardHTML.includes('hand-categories'));
+            details.innerHTML = standardHTML;
             break;
         case 'advanced':
             details.innerHTML = getAdvancedStats(data);
@@ -995,16 +1403,35 @@ function createHelpIcon(tooltipText) {
     return `<span class="help-icon" data-tooltip-id="${tooltipId}" data-tooltip-text="${tooltipText.replace(/"/g, '&quot;')}" onclick="event.stopPropagation()">?</span>`;
 }
 
+// Store chart instances to clean them up
+const handCategoryCharts = {};
+
 // Get hand category breakdown
 function getHandCategoryBreakdown(categories) {
-    if (!categories) return '';
+    console.log('getHandCategoryBreakdown called with:', categories);
+    if (!categories) {
+        console.log('No categories provided');
+        return '';
+    }
     
-    const topCategories = Object.entries(categories)
+    // Check if categories is empty object
+    const categoryEntries = Object.entries(categories);
+    if (categoryEntries.length === 0) {
+        console.log('Empty categories object detected!');
+        // Create diagnostic chart
+        return createEmptyCategoriesChart();
+    }
+    
+    const topCategories = categoryEntries
         .filter(([_, freq]) => freq > 0.01)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 5);
     
-    if (topCategories.length === 0) return '';
+    console.log('Top categories:', topCategories);
+    if (topCategories.length === 0) {
+        console.log('No categories above 1% threshold');
+        return createEmptyCategoriesChart();
+    }
     
     // Generate unique canvas ID
     const canvasId = 'handChart' + Math.random().toString(36).substr(2, 9);
@@ -1016,10 +1443,30 @@ function getHandCategoryBreakdown(categories) {
     // Create chart after DOM updates
     setTimeout(() => {
         const canvas = document.getElementById(canvasId);
-        if (!canvas) return;
+        console.log('Looking for canvas:', canvasId, 'Found:', !!canvas);
+        if (!canvas) {
+            console.error('Canvas not found:', canvasId);
+            return;
+        }
         
         const ctx = canvas.getContext('2d');
-        new Chart(ctx, {
+        console.log('Creating hand category chart with data:', data);
+        
+        // Check if Chart.js is loaded
+        if (typeof Chart === 'undefined') {
+            console.error('Chart.js is not loaded!');
+            return;
+        }
+        
+        try {
+            // Destroy any existing chart with this ID
+            if (handCategoryCharts[canvasId]) {
+                handCategoryCharts[canvasId].destroy();
+                delete handCategoryCharts[canvasId];
+            }
+            
+            // Create new chart and store reference
+            const chart = new Chart(ctx, {
             type: 'bar',
             data: {
                 labels: labels,
@@ -1122,14 +1569,104 @@ function getHandCategoryBreakdown(categories) {
                 }
             }
         });
-    }, 100);
+            
+            // Store the chart instance
+            handCategoryCharts[canvasId] = chart;
+            console.log('Chart created and stored with ID:', canvasId);
+            
+        } catch (error) {
+            console.error('Error creating hand category chart:', error);
+        }
+    }, 250); // Reduced timeout for faster response
     
-    return `
+    const html = `
         <div class="hand-categories" style="margin-top: 1rem; animation: fadeIn 0.7s ease-out;">
             <h4>🃏 Likely Outcomes</h4>
             <div style="position: relative; height: ${topCategories.length * 50 + 20}px; margin-top: 0.5rem;">
                 <canvas id="${canvasId}"></canvas>
             </div>
+        </div>
+    `;
+    console.log('Returning hand category HTML with canvas ID:', canvasId);
+    return html;
+}
+
+// Create diagnostic chart for empty categories
+function createEmptyCategoriesChart() {
+    const canvasId = 'emptyChart' + Math.random().toString(36).substr(2, 9);
+    
+    setTimeout(() => {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) {
+            console.error('Empty chart canvas not found');
+            return;
+        }
+        
+        const ctx = canvas.getContext('2d');
+        
+        try {
+            // Destroy any existing chart
+            if (handCategoryCharts[canvasId]) {
+                handCategoryCharts[canvasId].destroy();
+                delete handCategoryCharts[canvasId];
+            }
+            
+            const chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['⚠️ NO DATA'],
+                    datasets: [{
+                        data: [100],
+                        backgroundColor: ['rgba(255, 152, 0, 0.7)'],
+                        borderColor: ['rgba(255, 152, 0, 1)'],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        title: {
+                            display: true,
+                            text: 'Hand Categories Missing!',
+                            color: '#FF9800',
+                            font: { size: 16 }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: false,
+                            max: 100
+                        },
+                        y: {
+                            ticks: {
+                                color: '#FF9800',
+                                font: { size: 14 }
+                            }
+                        }
+                    }
+                }
+            });
+            
+            handCategoryCharts[canvasId] = chart;
+            console.log('Empty categories diagnostic chart created');
+            
+        } catch (error) {
+            console.error('Error creating empty categories chart:', error);
+        }
+    }, 250);
+    
+    return `
+        <div class="hand-categories" style="margin-top: 1rem; animation: fadeIn 0.7s ease-out;">
+            <h4>🃏 Likely Outcomes</h4>
+            <div style="position: relative; height: 80px; margin-top: 0.5rem; border: 2px dashed #FF9800; border-radius: 8px; padding: 10px;">
+                <canvas id="${canvasId}"></canvas>
+            </div>
+            <p style="color: #FF9800; text-align: center; margin-top: 0.5rem; font-size: 0.9rem;">
+                ⚠️ Hand category data is empty - this may indicate a caching or API issue
+            </p>
         </div>
     `;
 }
@@ -1174,9 +1711,10 @@ function clearAll() {
             btn.classList.remove('selected');
         });
         
-        // Hide results
+        // Hide both results panels
         document.getElementById('resultsPanel').classList.remove('active');
-        document.getElementById('mobileResults').style.display = 'none';
+        document.getElementById('resultsPanel').style.setProperty('display', 'none', 'important');
+        document.getElementById('mobileResults').style.setProperty('display', 'none', 'important');
         
         // Destroy charts if they exist
         if (state.probabilityChart) {
@@ -1191,7 +1729,9 @@ function clearAll() {
         // Reset card styles
         document.querySelectorAll('.card').forEach(card => {
             card.style.transform = '';
-            card.style.opacity = '';
+            card.style.opacity = '1'; // Explicitly set opacity to 1 to ensure visibility
+            card.style.display = ''; // Reset display property
+            card.style.visibility = ''; // Reset visibility property
         });
         
         updateUI();
@@ -1798,102 +2338,6 @@ function setupHelpIconInteractions() {
     }
 }
 
-// Cache status monitoring
-let cacheStatusInterval = null;
-
-function startCacheStatusMonitoring() {
-    // Check cache status immediately
-    checkCacheStatus();
-    
-    // Then check every 2 seconds
-    cacheStatusInterval = setInterval(checkCacheStatus, 2000);
-}
-
-// Reset cache function (debugging feature)
-async function resetCache() {
-    if (!confirm('Are you sure you want to reset the cache? This will clear all cached calculations.')) {
-        return;
-    }
-    
-    try {
-        const response = await fetch('/api/cache-reset', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
-        
-        const data = await response.json();
-        
-        if (response.ok) {
-            alert('Cache has been reset successfully!');
-            // Force reload to restart cache warming
-            window.location.reload();
-        } else {
-            alert('Failed to reset cache: ' + (data.detail || 'Unknown error'));
-        }
-    } catch (error) {
-        console.error('Failed to reset cache:', error);
-        alert('Failed to reset cache: ' + error.message);
-    }
-}
-
-async function checkCacheStatus() {
-    try {
-        const response = await fetch('/api/cache-status');
-        const data = await response.json();
-        
-        const cacheStatusEl = document.getElementById('cacheStatus');
-        const cacheCountEl = document.getElementById('cacheCount');
-        const cacheRateEl = document.getElementById('cacheRate');
-        
-        // Debug logging
-        console.log('Cache status data:', data);
-        console.log('Elements found:', {
-            status: !!cacheStatusEl,
-            count: !!cacheCountEl,
-            rate: !!cacheRateEl
-        });
-        
-        if (data.is_warming) {
-            // Show the indicator
-            cacheStatusEl.style.display = 'flex';
-            
-            // Show warming progress this session
-            if (data.warming_this_session !== undefined) {
-                cacheCountEl.textContent = `+${data.warming_this_session.toLocaleString()}`;
-                // Add progress info if available
-                if (data.progress_percent) {
-                    cacheCountEl.textContent += ` (${data.progress_percent}%)`;
-                }
-            } else {
-                // Fallback if warming_this_session is not available
-                cacheCountEl.textContent = '0';
-            }
-            
-            // Convert rate per second to rate per minute
-            const ratePerMinute = data.rate_per_second * 60;
-            cacheRateEl.textContent = ratePerMinute.toFixed(0);
-        } else {
-            // Hide the indicator with fade out
-            if (cacheStatusEl.style.display === 'flex') {
-                cacheStatusEl.style.animation = 'slideOutRight 0.3s ease-out';
-                setTimeout(() => {
-                    cacheStatusEl.style.display = 'none';
-                    cacheStatusEl.style.animation = '';
-                }, 300);
-                
-                // Stop checking once warming is complete
-                if (cacheStatusInterval) {
-                    clearInterval(cacheStatusInterval);
-                    cacheStatusInterval = null;
-                }
-            }
-        }
-    } catch (error) {
-        console.error('Failed to check cache status:', error);
-    }
-}
 
 // Make functions globally available
 window.switchStatsLevel = switchStatsLevel;

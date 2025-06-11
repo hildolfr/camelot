@@ -145,7 +145,8 @@ class CacheStorage:
                         return result
                     
             except Exception as e:
-                print(f"Error retrieving from SQLite cache: {e}")
+                # Silently handle cache retrieval errors
+                pass
             
             self.stats['misses'] += 1
             return None
@@ -181,7 +182,8 @@ class CacheStorage:
                           simulation_mode, json.dumps(value), key))
                     conn.commit()
             except Exception as e:
-                print(f"Error storing in SQLite cache: {e}")
+                # Silently handle cache storage errors
+                pass
     
     def _add_to_memory_cache(self, key: str, value: Dict):
         """Add entry to memory cache with LRU eviction."""
@@ -233,6 +235,70 @@ class CacheStorage:
             
             return stats
     
+    def clear_invalid_entries(self) -> int:
+        """
+        Clear cache entries with invalid or empty data.
+        
+        Returns:
+            Number of entries cleared
+        """
+        count = 0
+        with self.cache_lock:
+            # Clear from memory cache
+            keys_to_remove = []
+            for key, value in self.memory_cache.items():
+                if not self._is_valid_entry(value):
+                    keys_to_remove.append(key)
+            
+            for key in keys_to_remove:
+                del self.memory_cache[key]
+                count += 1
+            
+            # Clear from SQLite cache
+            try:
+                with self._get_db_connection() as conn:
+                    cursor = conn.cursor()
+                    # Get all entries
+                    cursor.execute("SELECT cache_key, result_json FROM cache_entries")
+                    invalid_keys = []
+                    
+                    for row in cursor.fetchall():
+                        key, json_str = row
+                        try:
+                            result = json.loads(json_str)
+                            if not self._is_valid_entry(result):
+                                invalid_keys.append(key)
+                        except:
+                            invalid_keys.append(key)
+                    
+                    # Delete invalid entries
+                    if invalid_keys:
+                        placeholders = ','.join('?' * len(invalid_keys))
+                        cursor.execute(f"DELETE FROM cache_entries WHERE cache_key IN ({placeholders})", invalid_keys)
+                        count += len(invalid_keys)
+                        conn.commit()
+                        
+            except Exception as e:
+                # Silently handle clearing errors
+                pass
+        
+        return count
+    
+    def _is_valid_entry(self, result: Dict) -> bool:
+        """Check if a cache entry has valid data."""
+        # Check for hand_categories field (can be empty)
+        if 'hand_categories' not in result:
+            return False
+        
+        # Check other required fields
+        required = ['win_probability', 'tie_probability', 'loss_probability', 
+                   'simulations_run', 'execution_time_ms']
+        for field in required:
+            if field not in result or result[field] is None:
+                return False
+        
+        return True
+    
     def clear_memory_cache(self):
         """Clear memory cache only."""
         with self.cache_lock:
@@ -251,7 +317,8 @@ class CacheStorage:
                     cursor.execute("DELETE FROM cache_metadata")
                     conn.commit()
             except Exception as e:
-                print(f"Error clearing SQLite cache: {e}")
+                # Silently handle clearing errors
+                pass
             
             # Reset statistics
             self.stats = {

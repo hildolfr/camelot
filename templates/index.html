@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="/static/css/navigation.css">
     <link rel="stylesheet" href="/static/css/lobby.css">
     <link rel="stylesheet" href="/static/css/poker_table.css">
+    <link rel="stylesheet" href="/static/css/no-vertical-scroll.css">
     <style>
         /* Locked game card styles with higher specificity */
         .poker-lobby .game-card.locked {
@@ -103,13 +104,57 @@
             box-sizing: border-box;
         }
         
+        /* Results panel visibility management */
+        /* Default: Hide both panels */
+        #mobileResults {
+            display: none !important;
+        }
+        
+        .results-panel {
+            display: none !important;
+            opacity: 0;
+            transform: translateX(100%);
+        }
+        
+        /* Desktop: Show results panel when active */
+        @media (min-width: 1025px) {
+            .results-panel {
+                display: block !important;
+                opacity: 0;
+                transform: translateX(100%);
+                transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            
+            .results-panel.active {
+                opacity: 1;
+                transform: translateX(0);
+            }
+            
+            #mobileResults {
+                display: none !important;
+            }
+        }
+        
+        /* Mobile/Tablet: Always hide desktop panel, show mobile when needed */
+        @media (max-width: 1024px) {
+            .results-panel {
+                display: none !important;
+            }
+            
+            #mobileResults {
+                /* Will be controlled by JavaScript */
+                display: none;
+            }
+        }
+        
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            min-height: 100vh;
+            height: 100vh;
             color: #fff;
             padding: 0;
-            overflow-x: hidden;
+            margin: 0;
+            overflow: hidden;
             position: relative;
         }
         
@@ -149,32 +194,299 @@
             }
         }
         
+        .app-section {
+            height: calc(100vh - 60px);
+            overflow: hidden;
+            position: relative;
+        }
+        
         .app-layout {
             display: flex;
-            gap: 2rem;
+            gap: 1rem;
             max-width: 1400px;
             margin: 0 auto;
+            padding: 0.5rem 1rem;
             transition: all 0.3s ease;
             position: relative;
             z-index: 1;
+            height: calc(100vh - 60px);
+            overflow: hidden;
         }
         
         .main-content {
             flex: 1;
             min-width: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow: hidden;
         }
         
         .results-panel {
             width: 400px;
+            overflow: hidden;
             transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
             opacity: 0;
             transform: translateX(100%);
-            overflow: hidden;
+            display: none;
         }
         
         .results-panel.active {
             opacity: 1;
             transform: translateX(0);
+            display: block;
+        }
+        
+        /* Aggressive optimization for 1080p screens */
+        @media (max-height: 1080px) {
+            /* Use viewport height units and CSS Grid for precise control */
+            .app-section {
+                padding-top: 60px;
+                height: 100vh;
+                overflow: hidden;
+            }
+            
+            #calculatorSection {
+                display: flex;
+                flex-direction: column;
+                height: 100vh;
+            }
+            
+            .app-layout {
+                flex: 1;
+                display: grid;
+                grid-template-columns: 1fr auto;
+                gap: 1rem;
+                padding: 0.75rem 1.5rem;
+                max-height: calc(100vh - 60px);
+                overflow: hidden;
+            }
+            
+            .main-content {
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+                max-height: 100%;
+            }
+            
+            .header {
+                margin-bottom: 0.5rem;
+                flex-shrink: 0;
+            }
+            
+            .header h1 {
+                font-size: 1.5rem;
+                margin-bottom: 0.1rem;
+            }
+            
+            .header p {
+                font-size: 0.85rem;
+            }
+            
+            .calculator-card {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                padding: 1rem;
+                overflow-y: auto;
+                overflow-x: hidden;
+                /* Remove height constraint for portrait mode */
+            }
+            
+            @media (orientation: landscape) {
+                .calculator-card {
+                    max-height: calc(100vh - 60px - 120px); /* Only constrain in landscape */
+                }
+            }
+            
+            /* Compact all sections */
+            .section {
+                margin-bottom: 0.75rem;
+                flex-shrink: 0;
+            }
+            
+            /* Further reduce spacing for opponents section */
+            .section:has(.opponents-section) {
+                margin-bottom: 0.3rem;
+            }
+            
+            .section-title {
+                font-size: 1.1rem;
+                margin-bottom: 0.5rem;
+            }
+            
+            .game-status {
+                margin-bottom: 0.5rem;
+                gap: 0.5rem;
+            }
+            
+            .status-card {
+                padding: 0.5rem;
+                min-width: 120px;
+            }
+            
+            .status-label {
+                font-size: 0.7rem;
+                margin-bottom: 0.2rem;
+            }
+            
+            .status-value {
+                font-size: 0.9rem;
+            }
+            
+            /* Ultra-compact card grid */
+            .card-grid {
+                gap: 0.4rem;
+                padding: 0.4rem;
+                margin-bottom: 0.5rem;
+            }
+            
+            .suit-row {
+                gap: 0.5rem;
+            }
+            
+            .suit-label {
+                width: clamp(25px, 3.5vw, 30px);
+                font-size: clamp(1.1rem, 1.8vw, 1.3rem);
+            }
+            
+            .suit-cards {
+                gap: 0.15rem;
+            }
+            
+            .card {
+                width: clamp(35px, 4.5vw, 45px);
+                font-size: clamp(0.95rem, 1.8vw, 1.2rem);
+            }
+            
+            .card-corner-top,
+            .card-corner-bottom {
+                font-size: clamp(0.55rem, 1vw, 0.65rem);
+            }
+            
+            .selection-badge {
+                width: clamp(16px, 2.5vw, 18px);
+                height: clamp(16px, 2.5vw, 18px);
+                font-size: clamp(0.6rem, 1.2vw, 0.7rem);
+            }
+            
+            /* Compact opponents section */
+            .opponents-section {
+                gap: 0.75rem;
+            }
+            
+            .opponent-btn {
+                padding: 0.4rem 0.8rem;
+                font-size: 0.9rem;
+            }
+            
+            /* Compact tournament options */
+            .tournament-toggle {
+                margin-top: 0.3rem;
+                margin-bottom: 0.3rem;
+                padding: 0.5rem;
+            }
+            
+            .tournament-options {
+                padding: 0.75rem;
+                margin-top: 0.5rem;
+            }
+            
+            .position-selector {
+                margin-bottom: 0.5rem;
+            }
+            
+            .position-dropdown,
+            .stack-input input {
+                padding: 0.4rem 0.8rem;
+                font-size: 0.85rem;
+            }
+            
+            /* Compact action buttons */
+            .action-buttons {
+                margin-top: 0.75rem;
+                gap: 0.75rem;
+                flex-shrink: 0;
+            }
+            
+            .btn {
+                padding: 0.75rem 1.5rem;
+                font-size: 1rem;
+            }
+            
+            /* Results panel adjustments */
+            .results-panel {
+                width: 350px;
+                max-height: calc(100vh - 60px);
+                overflow: hidden;
+            }
+            
+            .results {
+                max-height: 100%;
+                display: flex;
+                flex-direction: column;
+            }
+            
+            /* Hide mobile results on desktop 1080p */
+            #mobileResults {
+                display: none !important;
+            }
+            
+            /* Ensure no element restricts width too much */
+            .section, .card-grid, .suit-row {
+                min-width: fit-content;
+            }
+            
+        }
+        
+        /* Additional compact mode for screens between 900-1080px height */
+        @media (min-height: 900px) and (max-height: 1080px) {
+            .particles {
+                display: none; /* Remove particles to improve performance */
+            }
+            
+            body {
+                background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%) fixed;
+            }
+        }
+        
+        /* Runtime compact mode class for precise control */
+        body.compact-1080p {
+            overflow: hidden;
+        }
+        
+        body.compact-1080p .calculator-card {
+            overflow-y: auto;
+            overflow-x: hidden;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.3) rgba(255, 255, 255, 0.1);
+        }
+        
+        body.compact-1080p .calculator-card::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        body.compact-1080p .calculator-card::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+        
+        body.compact-1080p .calculator-card::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+        }
+        
+        /* Ensure action buttons stay at bottom */
+        body.compact-1080p .main-content {
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 60px);
+        }
+        
+        body.compact-1080p .action-buttons {
+            margin-top: auto;
+            padding-top: 0.5rem;
+            background: linear-gradient(to top, rgba(30, 60, 114, 0.95) 0%, transparent 100%);
         }
         
         @media (max-width: 1024px) {
@@ -198,15 +510,15 @@
         
         .header {
             text-align: center;
-            margin-bottom: 2rem;
+            margin-bottom: 1rem;
             animation: fadeIn 0.5s ease-in;
             position: relative;
             z-index: 1;
         }
         
         .header h1 {
-            font-size: 2.5rem;
-            margin-bottom: 0.5rem;
+            font-size: 2rem;
+            margin-bottom: 0.25rem;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
             background: linear-gradient(45deg, #fff, #FFD700);
             -webkit-background-clip: text;
@@ -221,8 +533,9 @@
         }
         
         .header p {
-            font-size: 1.1rem;
+            font-size: 1rem;
             opacity: 0.9;
+            margin: 0;
         }
         
         .calculator-card {
@@ -230,11 +543,17 @@
             backdrop-filter: blur(20px);
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 24px;
-            padding: 2rem;
+            padding: 1.5rem;
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
             animation: slideUp 0.5s ease-out;
             position: relative;
-            overflow: hidden;
+            overflow-y: auto;
+            overflow-x: hidden;
+            max-width: 100vw;
+            box-sizing: border-box;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
         }
         
         .calculator-card::before {
@@ -246,6 +565,8 @@
             height: 200%;
             background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
             animation: shimmerCard 15s linear infinite;
+            z-index: -1; /* Put shimmer behind content */
+            pointer-events: none;
         }
         
         @keyframes shimmerCard {
@@ -254,9 +575,12 @@
         }
         
         .section {
-            margin-bottom: 2rem;
+            margin-bottom: 1.5rem;
             position: relative;
             z-index: 1;
+            width: 100%;
+            min-width: 0;
+            flex-shrink: 0;
         }
         
         .section-title {
@@ -272,7 +596,7 @@
             display: flex;
             justify-content: space-between;
             gap: 1rem;
-            margin-bottom: 1.5rem;
+            margin-bottom: 1rem;
             flex-wrap: wrap;
         }
         
@@ -282,7 +606,7 @@
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 12px;
-            padding: 1rem;
+            padding: 0.75rem;
             text-align: center;
             transition: all 0.3s ease;
         }
@@ -319,23 +643,67 @@
         .card-grid {
             display: flex;
             flex-direction: column;
-            gap: 0.8rem;
+            gap: 1.2rem;
             margin-bottom: 1rem;
-            padding: 0.8rem;
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 16px;
+            padding: 1.5rem;
+            padding-bottom: 2.5rem; /* Extra bottom padding to prevent cutoff */
+            background: linear-gradient(135deg, rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.2));
+            border-radius: 20px;
+            width: 100%;
+            overflow-x: auto;
+            overflow-y: visible; /* Allow full content visibility */
+            position: relative;
+            z-index: 1;
+            box-sizing: border-box;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            animation: fadeInUp 0.5s ease-out;
+            min-height: auto;
+            height: auto;
+        }
+        
+        /* Add subtle scrollbar for card grid */
+        .card-grid::-webkit-scrollbar {
+            height: 6px;
+        }
+        
+        .card-grid::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 3px;
+        }
+        
+        .card-grid::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+        }
+        
+        /* Ensure card grid scrollbar is always visible on hover */
+        .card-grid:hover::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
         }
         
         .suit-row {
             display: flex;
             align-items: center;
-            gap: 0.8rem;
+            gap: 1rem;
+            width: fit-content;
+            min-width: 100%;
+            flex-shrink: 0;
+            padding: 0.5rem 0;
+            animation: slideInLeft 0.6s ease-out;
+            animation-fill-mode: both;
         }
         
+        .suit-row:nth-child(1) { animation-delay: 0.1s; }
+        .suit-row:nth-child(2) { animation-delay: 0.2s; }
+        .suit-row:nth-child(3) { animation-delay: 0.3s; }
+        .suit-row:nth-child(4) { animation-delay: 0.4s; }
+        
         .suit-label {
-            width: 40px;
+            flex: 0 0 auto;
+            width: clamp(30px, 5vw, 40px);
             text-align: center;
-            font-size: 1.8rem;
+            font-size: clamp(1.4rem, 2.5vw, 1.8rem);
             opacity: 0.8;
         }
         
@@ -345,46 +713,128 @@
         
         .suit-cards {
             display: flex;
-            gap: 0.3rem;
-            flex: 1;
-            min-width: 0; /* Allow shrinking */
+            gap: 0.4rem;
+            flex: 0 0 auto;
+            min-width: max-content;
+            padding-right: 1rem;
+            overflow-x: visible;
+            overflow-y: hidden;
+        }
+        
+        /* Add extra space after Jack (4th card) to separate face cards from number cards */
+        .suit-cards .card:nth-child(4) {
+            margin-right: 1.2rem; /* Extra space after Jack */
+        }
+        
+        .suit-cards::-webkit-scrollbar {
+            height: 4px; /* Show thin scrollbar */
+        }
+        
+        .suit-cards::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 2px;
+        }
+        
+        .suit-cards::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
         }
         
         .card {
-            flex: 1;
-            max-width: 70px;
-            min-width: 40px;
+            flex: 0 0 auto;
+            width: 45px;
             aspect-ratio: 2/3;
+            height: auto;
+            max-height: 68px;
             background: linear-gradient(145deg, #fff, #f0f0f0);
-            border: 2px solid transparent;
+            border: 2px solid rgba(0, 0, 0, 0.15);
             border-radius: 8px;
             cursor: pointer;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            font-size: 1.6rem;
+            font-size: 1.1rem;
             font-weight: bold;
             color: #333;
             position: relative;
             overflow: hidden;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+            animation: cardEntrance 0.5s ease-out;
+            animation-fill-mode: both;
+            transform-style: preserve-3d;
         }
         
+        @keyframes cardEntrance {
+            from {
+                opacity: 0;
+                transform: scale(0.8) rotateY(-180deg);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) rotateY(0);
+            }
+        }
+        
+        .card:nth-child(1) { animation-delay: 0.05s; }
+        .card:nth-child(2) { animation-delay: 0.1s; }
+        .card:nth-child(3) { animation-delay: 0.15s; }
+        .card:nth-child(4) { animation-delay: 0.2s; }
+        .card:nth-child(5) { animation-delay: 0.25s; }
+        .card:nth-child(6) { animation-delay: 0.3s; }
+        .card:nth-child(7) { animation-delay: 0.35s; }
+        .card:nth-child(8) { animation-delay: 0.4s; }
+        .card:nth-child(9) { animation-delay: 0.45s; }
+        .card:nth-child(10) { animation-delay: 0.5s; }
+        .card:nth-child(11) { animation-delay: 0.55s; }
+        .card:nth-child(12) { animation-delay: 0.6s; }
+        .card:nth-child(13) { animation-delay: 0.65s; }
+        
         .card:hover {
-            transform: translateY(-4px) rotateZ(2deg);
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
-            z-index: 10;
+            transform: translateY(-8px) rotateZ(3deg) scale(1.15);
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4), 0 0 20px rgba(255, 255, 255, 0.2);
+            z-index: 20;
+            border-color: rgba(255, 255, 255, 0.4);
+            animation: cardHover 0.3s ease-out;
+        }
+        
+        @keyframes cardHover {
+            0% { transform: translateY(0) rotateZ(0) scale(1); }
+            50% { transform: translateY(-10px) rotateZ(5deg) scale(1.2); }
+            100% { transform: translateY(-8px) rotateZ(3deg) scale(1.15); }
         }
         
         .card.selected {
-            animation: cardSelect 0.4s ease-out;
-            transform: translateY(-4px);
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-            z-index: 5;
+            animation: cardSelect 0.6s ease-out, cardGlow 2s ease-in-out infinite;
+            transform: translateY(-8px) scale(1.1);
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5), 0 0 30px rgba(76, 175, 80, 0.4);
+            z-index: 15;
+            border-color: rgba(76, 175, 80, 0.6);
+        }
+        
+        @keyframes cardGlow {
+            0%, 100% { box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5), 0 0 30px rgba(76, 175, 80, 0.4); }
+            50% { box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5), 0 0 40px rgba(76, 175, 80, 0.6); }
         }
         
         @keyframes cardSelect {
-            0% { transform: scale(1) rotateY(0); }
-            50% { transform: scale(1.1) rotateY(180deg); }
-            100% { transform: scale(1) rotateY(360deg) translateY(-4px); }
+            0% { 
+                transform: scale(1) rotateY(0) translateY(0);
+                filter: brightness(1);
+            }
+            25% { 
+                transform: scale(1.2) rotateY(90deg) translateY(-15px);
+                filter: brightness(1.2);
+            }
+            50% { 
+                transform: scale(1.3) rotateY(180deg) translateY(-20px);
+                filter: brightness(1.4);
+            }
+            75% { 
+                transform: scale(1.2) rotateY(270deg) translateY(-15px);
+                filter: brightness(1.2);
+            }
+            100% { 
+                transform: scale(1.1) rotateY(360deg) translateY(-8px);
+                filter: brightness(1);
+            }
         }
         
         .card.hero-card {
@@ -421,13 +871,28 @@
             color: #B71C1C;
         }
         
+        /* Ensure board cards are always visible */
+        .card.board-card {
+            opacity: 1 !important;
+            display: flex !important;
+            visibility: visible !important;
+        }
+        
+        /* Ensure all selected cards are visible */
+        .card.selected {
+            opacity: 1 !important;
+            display: flex !important;
+            visibility: visible !important;
+            animation: none !important;
+        }
+        
         .card-corner-top {
             position: absolute;
             top: 2px;
             left: 2px;
             text-align: center;
             line-height: 0.9;
-            font-size: 0.75rem;
+            font-size: clamp(0.6rem, 1.2vw, 0.75rem);
             font-weight: bold;
         }
         
@@ -437,7 +902,7 @@
             right: 2px;
             text-align: center;
             line-height: 0.9;
-            font-size: 0.75rem;
+            font-size: clamp(0.6rem, 1.2vw, 0.75rem);
             font-weight: bold;
             transform: rotate(180deg);
         }
@@ -450,12 +915,12 @@
             background: #4CAF50;
             color: white;
             border-radius: 50%;
-            width: 24px;
-            height: 24px;
+            width: clamp(18px, 3.5vw, 24px);
+            height: clamp(18px, 3.5vw, 24px);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.85rem;
+            font-size: clamp(0.7rem, 1.4vw, 0.85rem);
             font-weight: bold;
             animation: badgePop 0.3s ease-out;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
@@ -463,9 +928,9 @@
         }
         
         @keyframes badgePop {
-            0% { transform: scale(0); opacity: 0; }
-            60% { transform: scale(1.2); }
-            100% { transform: scale(1); opacity: 1; }
+            0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+            60% { transform: translate(-50%, -50%) scale(1.2); }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
         }
         
         .opponents-selector {
@@ -500,45 +965,102 @@
             margin-top: 2rem;
             position: relative;
             z-index: 2;
+            flex-shrink: 0;
         }
         
         .btn {
             flex: 1;
             padding: 1rem 2rem;
             border: none;
-            border-radius: 10px;
+            border-radius: 12px;
             font-size: 1.1rem;
             font-weight: bold;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            z-index: 1;
+            overflow: hidden;
+            transform-style: preserve-3d;
+            letter-spacing: 0.5px;
+        }
+        
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.3), transparent);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+            border-radius: 50%;
+            z-index: 0;
+        }
+        
+        .btn:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+        
+        .btn:active {
+            transform: scale(0.98);
+        }
+        
+        .btn span {
             position: relative;
             z-index: 1;
         }
         
         .btn-primary {
-            background: #4CAF50;
+            background: linear-gradient(135deg, #4CAF50, #45a049);
             color: white;
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            animation: buttonShine 3s ease-in-out infinite;
+            background-size: 200% 200%;
+        }
+        
+        @keyframes buttonShine {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
         }
         
         .btn-primary:hover:not(:disabled) {
-            background: #45a049;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+            transform: translateY(-3px) scale(1.05);
+            box-shadow: 0 8px 25px rgba(76, 175, 80, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+            animation: buttonPulse 1s ease-in-out infinite, buttonShine 3s ease-in-out infinite;
+        }
+        
+        @keyframes buttonPulse {
+            0%, 100% { transform: translateY(-3px) scale(1.05); }
+            50% { transform: translateY(-3px) scale(1.08); }
         }
         
         .btn-primary:disabled {
-            opacity: 0.6;
+            opacity: 0.5;
             cursor: not-allowed;
+            animation: none;
+            background: #9E9E9E;
+            box-shadow: none;
+        }
+        
+        .btn-primary.pulse-glow {
+            animation: pulseGlow 2s ease-in-out infinite, buttonShine 3s ease-in-out infinite;
         }
         
         .btn-secondary {
-            background: rgba(255, 255, 255, 0.2);
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.1));
             color: white;
             border: 2px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
         }
         
         .btn-secondary:hover {
-            background: rgba(255, 255, 255, 0.3);
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.2));
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.5);
         }
         
         .results {
@@ -771,10 +1293,16 @@
             animation: pulse 2s ease-in-out infinite;
         }
         
+        /* Reduce spacing for opponents section */
+        .section:has(.opponents-section) {
+            margin-bottom: 0.5rem;
+        }
+        
         .opponents-section {
             display: flex;
             align-items: center;
-            gap: 2rem;
+            gap: 1.5rem;
+            margin-bottom: 0;
         }
         
         /* Tournament mode styles */
@@ -782,8 +1310,9 @@
             display: flex;
             align-items: center;
             gap: 1rem;
-            margin-bottom: 1rem;
-            padding: 1rem;
+            margin-top: 0.75rem;
+            margin-bottom: 0.75rem;
+            padding: 0.75rem;
             background: rgba(255, 255, 255, 0.05);
             border-radius: 10px;
         }
@@ -1487,124 +2016,43 @@
             margin-bottom: 0.5rem;
         }
         
-        /* Responsive breakpoints for card layout */
-        @media (max-width: 900px) {
+        /* Portrait mode optimizations */
+        @media (orientation: portrait) and (max-width: 768px) {
+            .card-grid {
+                padding: 0.4rem;
+                gap: 0.4rem;
+            }
+            
+            .suit-row {
+                gap: 0.4rem;
+            }
+            
             .suit-cards {
                 gap: 0.2rem;
             }
-            
-            .card {
-                min-width: 35px;
-            }
-            
-            .card-corner-top,
-            .card-corner-bottom {
-                font-size: 0.7rem;
-            }
-            
-            .selection-badge {
-                width: 20px;
-                height: 20px;
-                font-size: 0.75rem;
-            }
         }
         
-        /* Very small screens - allow wrapping as last resort */
-        @media (max-width: 500px) {
-            .suit-cards {
-                flex-wrap: wrap;
-            }
-            
+        /* Very narrow screens */
+        @media (max-width: 400px) {
             .card {
-                flex: 0 1 calc(50% - 0.1rem);
-                max-width: 60px;
-                min-width: 45px;
+                width: clamp(35px, 5.5vw, 50px);
+                font-size: clamp(0.9rem, 1.6vw, 1.2rem);
             }
             
             .suit-label {
-                width: 30px;
-                font-size: 1.4rem;
+                width: clamp(22px, 4vw, 30px);
+                font-size: clamp(1.1rem, 1.8vw, 1.4rem);
+            }
+            
+            /* Ensure cards container can scroll */
+            .suit-cards {
+                overflow-x: auto;
+                overflow-y: hidden;
+                min-width: calc(13 * 35px + 12 * 0.2rem + 0.5rem); /* Ensure all cards visible */
+                -webkit-overflow-scrolling: touch;
             }
         }
         
-        /* Cache Status Indicator */
-        .cache-status {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: rgba(0, 0, 0, 0.8);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 12px;
-            padding: 0.8rem 1.2rem;
-            display: flex;
-            align-items: center;
-            gap: 0.8rem;
-            z-index: 100;
-            animation: slideInRight 0.3s ease-out;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-        }
-        
-        .cache-icon {
-            font-size: 1.5rem;
-            animation: pulse 2s infinite;
-        }
-        
-        .cache-info {
-            display: flex;
-            flex-direction: column;
-            gap: 0.2rem;
-        }
-        
-        .cache-warning {
-            font-size: 0.7rem;
-            color: #FFC107;
-            opacity: 0.9;
-            margin-top: 0.2rem;
-        }
-        
-        .cache-title {
-            font-size: 0.85rem;
-            font-weight: bold;
-            color: #FFD700;
-        }
-        
-        .cache-stats {
-            font-size: 0.75rem;
-            opacity: 0.8;
-        }
-        
-        .cache-rate {
-            color: #4CAF50;
-            font-weight: bold;
-        }
-        
-        .cache-reset-btn {
-            background: rgba(255, 68, 68, 0.2);
-            border: 1px solid rgba(255, 68, 68, 0.4);
-            color: #FF4444;
-            font-size: 1.2rem;
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s;
-            margin-left: 0.5rem;
-        }
-        
-        .cache-reset-btn:hover {
-            background: rgba(255, 68, 68, 0.3);
-            border-color: rgba(255, 68, 68, 0.6);
-            transform: rotate(180deg);
-        }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.6; transform: scale(0.9); }
-        }
         
         @media (max-width: 600px) {
             .header h1 {
@@ -1612,11 +2060,12 @@
             }
             
             .calculator-card {
-                padding: 1.5rem;
+                padding: 1rem;
+                margin: 0 0.5rem;
             }
             
-            .suit-row {
-                gap: 0.5rem;
+            .section {
+                margin-bottom: 1rem;
             }
             
             .stats-controls {
@@ -1629,32 +2078,277 @@
                 max-width: none;
             }
         }
+        
+        /* Extra safety for very narrow portrait displays */
+        @media (orientation: portrait) and (max-width: 414px) {
+            .calculator-card {
+                padding: 0.75rem;
+            }
+            
+            .card-grid {
+                padding: 0.3rem;
+                padding-bottom: 1rem;
+                max-height: none; /* Remove height restriction */
+                height: auto;
+            }
+            
+            .section-title {
+                font-size: 1.1rem;
+            }
+        }
+        
+        /* Portrait 1080p screens */
+        @media (orientation: portrait) and (min-width: 1000px) and (min-height: 1800px) {
+            .card-grid {
+                max-height: none !important; /* Remove height restriction */
+                height: auto !important;
+                padding: 2rem;
+                padding-bottom: 3rem; /* Extra padding for large screens */
+            }
+            
+            .calculator-card {
+                max-height: none !important;
+                overflow-y: visible !important;
+            }
+            
+            .main-content {
+                overflow-y: auto !important;
+                height: auto !important;
+            }
+            
+            .app-layout {
+                height: auto !important;
+                min-height: calc(100vh - 60px);
+                overflow-y: auto !important;
+            }
+        }
+        
+        /* Mobile results should only show on mobile */
+        #mobileResults {
+            display: none !important;
+        }
+        
+        @media (max-width: 1024px) {
+            .results-panel {
+                display: none !important;
+            }
+            
+            #mobileResults {
+                display: none !important; /* Will be overridden by JS when needed */
+            }
+        }
+        
+        /* Responsive adjustments for different screen sizes */
+        @media screen and (max-width: 768px) {
+            /* Mobile/tablet - cards need to be smaller */
+            .card {
+                width: 35px;
+                font-size: 0.9rem;
+            }
+            
+            .card-grid {
+                padding: 0.3rem;
+                gap: 0.3rem;
+            }
+            
+            .suit-label {
+                width: 28px;
+                font-size: 1.2rem;
+            }
+        }
+        
+        /* Ensure layout is compact on all screens */
+        @media screen and (min-width: 769px) {
+            /* General desktop optimizations */
+            .header {
+                margin-bottom: 0.5rem;
+            }
+            
+            .header h1 {
+                font-size: 1.6rem;
+            }
+            
+            .section {
+                margin-bottom: 0.8rem;
+            }
+            
+            .calculator-card {
+                padding: 1rem;
+            }
+            
+            .app-section {
+                height: calc(100vh - 60px);
+                max-height: calc(100vh - 60px);
+                overflow: hidden;
+                display: flex;
+                flex-direction: column;
+            }
+            
+            .app-layout {
+                flex: 1;
+                overflow: hidden;
+                padding: 0.5rem;
+            }
+            
+            .main-content {
+                max-height: 100%;
+                overflow: hidden;
+            }
+            
+            /* Ultra compact header */
+            .header {
+                flex-shrink: 0;
+                margin-bottom: 0.25rem;
+            }
+            
+            .header h1 {
+                font-size: 1.4rem;
+                margin: 0;
+                line-height: 1;
+            }
+            
+            .header p {
+                font-size: 0.8rem;
+                margin: 0;
+                line-height: 1;
+            }
+            
+            /* Make calculator content scrollable */
+            .calculator-card {
+                flex: 1;
+                overflow-y: auto;
+                overflow-x: hidden;
+                padding: 0.75rem;
+                max-height: calc(100vh - 180px); /* Account for nav + header + margins */
+            }
+            
+            /* Reduce all vertical spacing */
+            .section {
+                margin-bottom: 0.6rem;
+            }
+            
+            /* Further reduce spacing for opponents section */
+            .section:has(.opponents-section) {
+                margin-bottom: 0.2rem;
+            }
+            
+            .section-title {
+                font-size: 1rem;
+                margin-bottom: 0.4rem;
+            }
+            
+            .game-status {
+                margin-bottom: 0.4rem;
+                gap: 0.4rem;
+            }
+            
+            .status-card {
+                padding: 0.4rem;
+                min-width: 110px;
+            }
+            
+            .status-label {
+                font-size: 0.65rem;
+                margin-bottom: 0.15rem;
+            }
+            
+            .status-value {
+                font-size: 0.85rem;
+            }
+            
+            /* Compact card grid */
+            .card-grid {
+                gap: 0.25rem;
+                padding: 0.25rem;
+                margin-bottom: 0.4rem;
+            }
+            
+            .suit-row {
+                gap: 0.25rem;
+            }
+            
+            .card {
+                width: 40px;
+                max-width: 40px;
+                font-size: 1rem;
+            }
+            
+            .suit-label {
+                width: 28px;
+                font-size: 1.3rem;
+            }
+            
+            /* Ensure cards can scroll if needed */
+            .suit-cards {
+                overflow-x: auto;
+                padding-right: 0.3rem;
+                scrollbar-width: thin;
+            }
+            
+            .suit-cards::-webkit-scrollbar {
+                height: 4px;
+            }
+            
+            .suit-cards::-webkit-scrollbar-track {
+                background: rgba(255, 255, 255, 0.05);
+                border-radius: 2px;
+            }
+            
+            .suit-cards::-webkit-scrollbar-thumb {
+                background: rgba(255, 255, 255, 0.2);
+                border-radius: 2px;
+            }
+            
+            /* Compact buttons */
+            .opponent-btn {
+                padding: 0.35rem 0.7rem;
+                font-size: 0.85rem;
+            }
+            
+            /* Compact tournament toggle on desktop */
+            .tournament-toggle {
+                margin-top: 0.3rem;
+                margin-bottom: 0.3rem;
+                padding: 0.4rem 0.6rem;
+            }
+            
+            .action-buttons {
+                margin-top: 0.6rem;
+                gap: 0.6rem;
+            }
+            
+            .btn {
+                padding: 0.5rem 1rem;
+                font-size: 0.9rem;
+            }
+            
+            /* Hide non-essential elements */
+            .particles {
+                display: none;
+            }
+            
+            
+            /* Hide vertical scrollbar on calculator card but keep it functional */
+            .calculator-card {
+                scrollbar-width: none; /* Firefox */
+                -ms-overflow-style: none; /* IE and Edge */
+            }
+            
+            .calculator-card::-webkit-scrollbar {
+                display: none; /* Chrome, Safari, Opera */
+            }
+        }
     </style>
 </head>
 <body>
     <!-- Animated background particles -->
     <div class="particles" id="particles"></div>
     
-    <!-- Cache Status Indicator -->
-    <div id="cacheStatus" class="cache-status" style="display: none;">
-        <div class="cache-icon">⚡</div>
-        <div class="cache-info">
-            <div class="cache-title">Cache Warming</div>
-            <div class="cache-stats">
-                <span id="cacheCount">0</span> new
-                <span class="cache-rate">(<span id="cacheRate">0</span>/min)</span>
-            </div>
-            <div class="cache-warning">Performance may be slower during this process</div>
-        </div>
-        <button id="cacheResetBtn" class="cache-reset-btn" onclick="resetCache()" title="Reset cache (debug)">
-            🔄
-        </button>
-    </div>
     
     <!-- Navigation Bar -->
     <nav class="nav-bar">
         <div class="nav-container">
-            <div class="nav-brand">
+            <div class="nav-brand" onclick="navigateToSection('calculator')" style="cursor: pointer;">
                 <h2>⚔️ Camelot</h2>
             </div>
             <div class="nav-buttons">
@@ -1674,7 +2368,7 @@
             <div class="main-content">
                 <header class="header">
                     <h1>Poker Calculator</h1>
-                    <p>Calculate your Texas Hold'em odds with the power of Poker Knight</p>
+                    <p>Texas Hold'em odds powered by Poker Knight</p>
                 </header>
             
             <div class="calculator-card">
@@ -1696,10 +2390,10 @@
                 
                 <div class="section">
                     <h2 class="section-title">🃏 Select Your Cards</h2>
-                    <p style="margin-bottom: 1rem; opacity: 0.8;">
-                        First 2 cards = Your hand • Next 3-5 cards = Board
+                    <p style="margin-bottom: 0.3rem; opacity: 0.8; font-size: 0.85rem;">
+                        First 2 = Your hand • Next 3-5 = Board
                         <span id="boardHint" style="display: none; color: #FF9800; font-weight: bold;">
-                            <br>⚠️ Board must have 0 or 3-5 cards (not 1-2)
+                            • ⚠️ Board needs 0 or 3-5 cards
                         </span>
                     </p>
                     <div id="cardGrid" class="card-grid">
@@ -1783,9 +2477,9 @@
             </div>
             
                 <div class="action-buttons">
-                    <button id="calculateBtn" class="btn btn-primary" disabled>Calculate Odds</button>
-                    <button id="clearBtn" class="btn btn-secondary">Clear All</button>
-                    <button id="historyBtn" class="btn btn-secondary">📜 History</button>
+                    <button id="calculateBtn" class="btn btn-primary" disabled><span>Calculate Odds</span></button>
+                    <button id="clearBtn" class="btn btn-secondary"><span>Clear All</span></button>
+                    <button id="historyBtn" class="btn btn-secondary"><span>📜 History</span></button>
                 </div>
                 
                 <!-- Loading overlay moved outside calculator-card -->

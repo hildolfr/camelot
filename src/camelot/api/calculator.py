@@ -157,3 +157,18 @@ async def reset_cache() -> Dict:
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to reset cache: {str(e)}")
+
+
+@router.post("/cache-cleanup")
+async def cleanup_invalid_cache() -> Dict:
+    """Clean up invalid cache entries (entries with empty hand_categories)."""
+    try:
+        count = calculator.clear_invalid_cache_entries()
+        
+        return {
+            "status": "success",
+            "message": f"Cleaned up {count} invalid cache entries",
+            "count": count
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to clean cache: {str(e)}")

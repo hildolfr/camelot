@@ -35,3 +35,7 @@ poker_knight/
 # Cache files
 poker_cache.db
 poker_cache.db-journal
+
+# Screenshots and temporary files
+fix-needed.png
+*.png

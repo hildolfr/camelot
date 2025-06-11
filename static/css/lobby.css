@@ -207,3 +207,57 @@
         font-size: 3rem;
     }
 }
+
+/* Compact mode for 1080p displays */
+@media (max-height: 1080px) {
+    .poker-lobby {
+        padding: 1rem 2rem;
+        max-height: calc(100vh - 60px);
+        overflow-y: auto;
+    }
+    
+    .lobby-header {
+        margin-bottom: 1.5rem;
+    }
+    
+    .lobby-header h1 {
+        font-size: 2.5rem;
+        margin-bottom: 0.3rem;
+    }
+    
+    .lobby-header p {
+        font-size: 1rem;
+    }
+    
+    .lobby-games {
+        gap: 1.5rem;
+    }
+    
+    .game-card {
+        padding: 1.5rem;
+    }
+    
+    .game-icon {
+        font-size: 3rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    .game-card h3 {
+        font-size: 1.3rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    .game-details {
+        margin-bottom: 1rem;
+    }
+    
+    .game-details p {
+        margin: 0.3rem 0;
+        font-size: 0.85rem;
+    }
+    
+    .join-btn {
+        padding: 0.6rem 1.5rem;
+        font-size: 0.95rem;
+    }
+}

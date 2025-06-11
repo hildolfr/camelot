@@ -8,8 +8,10 @@ from datetime import datetime
 
 from .poker_game import PlayerAction, GameState, Player, GamePhase
 
-# Set up both console and file logging
+# Set up file-only logging for AI player
 logger = logging.getLogger(__name__)
+# Prevent propagation to root logger (no console output)
+logger.propagate = False
 
 # Use the same log directory as poker_game
 current_file = os.path.abspath(__file__)
@@ -20,16 +22,20 @@ project_root = os.path.dirname(src_dir)
 log_dir = os.path.join(project_root, 'logs')
 os.makedirs(log_dir, exist_ok=True)
 
-# Use the same log file as poker_game if it exists
-log_files = sorted([f for f in os.listdir(log_dir) if f.startswith('poker_game_') and f.endswith('.log')])
-if log_files:
-    log_filename = os.path.join(log_dir, log_files[-1])
-    file_handler = logging.FileHandler(log_filename)
-    file_handler.setLevel(logging.DEBUG)
-    file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    file_handler.setFormatter(file_formatter)
-    logger.addHandler(file_handler)
-    logger.setLevel(logging.DEBUG)
+# Use the same rotating log file as poker_game
+from logging.handlers import RotatingFileHandler
+log_filename = os.path.join(log_dir, 'poker_game.log')
+file_handler = RotatingFileHandler(
+    log_filename,
+    maxBytes=10*1024*1024,  # 10MB
+    backupCount=5,  # Keep 5 old files
+    encoding='utf-8'
+)
+file_handler.setLevel(logging.DEBUG)
+file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(file_formatter)
+logger.addHandler(file_handler)
+logger.setLevel(logging.DEBUG)
 
 
 class AIPlayer:

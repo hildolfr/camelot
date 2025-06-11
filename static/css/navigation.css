@@ -60,7 +60,7 @@
 /* App sections */
 .app-section {
     padding-top: 60px; /* Account for fixed nav */
-    min-height: 100vh;
+    min-height: calc(100vh - 60px); /* Subtract navbar height */
 }
 
 /* Responsive navigation */

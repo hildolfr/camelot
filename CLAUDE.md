@@ -33,19 +33,36 @@ When we need to make complicated plans we will create a time/dated document in t
 
 ## Bug Reporting System
 Users can submit bug reports during gameplay using the bug report button (🐛) at the bottom right of the game screen.
-These reports are logged directly into the game's log file with special markers.
+Bug reports are logged with special markers and also saved to a dedicated daily rotating log file.
 
-To search for user bug reports in the logs, use:
+### Log Files Structure
+- `logs/poker_game.log` - Main game log (rotates at 10MB, keeps 5 backups)
+- `logs/bug_reports.log` - Dedicated bug reports (rotates daily, keeps 30 days)
+- Rotated files appear as `.log.1`, `.log.2`, etc.
+
+### Searching for Bug Reports
+
+To search for user bug reports in the main logs:
 ```bash
-grep -A10 -B2 "USER_BUG_REPORT_START" logs/poker_game_*.log
+grep -A10 -B2 "USER_BUG_REPORT_START" logs/poker_game.log*
+```
+
+To view only bug reports from the dedicated log:
+```bash
+cat logs/bug_reports.log*
 ```
 
 Or to find all bug reports with context:
 ```bash
-grep -E "USER_BUG_REPORT_(START|END)" logs/poker_game_*.log
+grep -E "USER_BUG_REPORT_(START|END)" logs/poker_game.log*
 ```
 
 Bug reports include timestamp, game state, user description, and relevant game context.
+
+### Log Rotation
+- Game logs: Rotate at 10MB, keep 5 backup files (50MB total)
+- Bug reports: Rotate daily at midnight, keep 30 days
+- Old timestamped logs can be cleaned with: `python cleanup_old_logs.py`
 
 
 

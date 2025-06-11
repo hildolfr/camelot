@@ -80,16 +80,25 @@ class CachedPokerCalculator(PokerCalculator):
             cache_time = (time.time() - start_time) * 1000  # Convert to ms
             
             if cached_result:
-                # Add cache metadata
-                cached_result['from_cache'] = True
-                cached_result['cache_time_ms'] = cache_time
-                # Override execution time to show cache retrieval time
-                cached_result['execution_time_ms'] = cache_time
-                # Override computation source for cached results
-                cached_result['gpu_used'] = False
-                cached_result['backend'] = 'cache'
-                cached_result['device'] = None
-                return cached_result
+                # Validate cached result has all required fields
+                is_valid = self._validate_cached_result(cached_result)
+                
+                if not is_valid:
+                    # Stale cache entry, recalculate
+                    # Don't count as a hit since we're recalculating
+                    pass
+                else:
+                    # Valid cache entry
+                    # Add cache metadata
+                    cached_result['from_cache'] = True
+                    cached_result['cache_time_ms'] = cache_time
+                    # Override execution time to show cache retrieval time
+                    cached_result['execution_time_ms'] = cache_time
+                    # Override computation source for cached results
+                    cached_result['gpu_used'] = False
+                    cached_result['backend'] = 'cache'
+                    cached_result['device'] = None
+                    return cached_result
         
         # Calculate if not cached or has dynamic params
         start_time = time.time()
@@ -140,9 +149,53 @@ class CachedPokerCalculator(PokerCalculator):
         finally:
             self._cache_enabled = True
     
+    def _validate_cached_result(self, result: Dict) -> bool:
+        """
+        Validate that a cached result has all required fields.
+        
+        Args:
+            result: Cached result dictionary
+            
+        Returns:
+            True if valid, False if missing required data
+        """
+        # Required fields that must exist and not be None
+        required_fields = [
+            'win_probability',
+            'tie_probability', 
+            'loss_probability',
+            'simulations_run',
+            'execution_time_ms',
+            'confidence_interval'
+        ]
+        
+        # Check required fields
+        for field in required_fields:
+            if field not in result or result[field] is None:
+                return False
+        
+        # Check that hand_categories field exists (can be empty for pre-flop)
+        if 'hand_categories' not in result:
+            return False
+        
+        # Additional validation for confidence_interval
+        ci = result.get('confidence_interval')
+        if not isinstance(ci, (list, tuple)) or len(ci) != 2:
+            return False
+        
+        return True
+    
     def get_cache_stats(self) -> Dict:
         """Get cache statistics."""
         return self.cache.get_stats()
+    
+    def clear_invalid_cache_entries(self):
+        """Clear cache entries with empty hand_categories."""
+        try:
+            count = self.cache.clear_invalid_entries()
+            return count
+        except Exception as e:
+            return 0
     
     def clear_cache(self, memory_only: bool = False):
         """
