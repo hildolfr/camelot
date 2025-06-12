@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/navigation.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #0f0f1e 100%);
+            color: rgba(255, 255, 255, 0.9);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+        }
+        
+        .log-viewer-container {
+            max-width: 1600px;
+            margin: 80px auto 20px;
+            padding: 20px;
+            height: calc(100vh - 120px);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .log-header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .log-header h1 {
+            color: #FFD700;
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+        }
+        
+        .log-header p {
+            font-size: 1.1rem;
+            opacity: 0.8;
+            margin: 0;
+        }
+        
+        .log-viewer-main {
+            flex: 1;
+            display: flex;
+            gap: 1.5rem;
+            overflow: hidden;
+        }
+        
+        .log-sidebar {
+            width: 350px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 1.5rem;
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .log-content-area {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 1.5rem;
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .section-header h2 {
+            color: #4CAF50;
+            font-size: 1.3rem;
+            margin: 0;
+        }
+        
+        .section-header .icon {
+            font-size: 1.5rem;
+        }
+        
+        .log-list-container {
+            flex: 1;
+            overflow-y: auto;
+            margin-bottom: 1rem;
+        }
+        
+        .log-file-item {
+            padding: 0.8rem;
+            margin: 0.3rem 0;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .log-file-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateX(5px);
+        }
+        
+        .log-file-item.selected {
+            background: rgba(76, 175, 80, 0.2);
+            border: 1px solid #4CAF50;
+        }
+        
+        .log-file-info {
+            font-size: 0.85rem;
+            opacity: 0.7;
+        }
+        
+        .log-file-name {
+            font-weight: bold;
+            margin-bottom: 0.2rem;
+        }
+        
+        .log-category {
+            margin-bottom: 1rem;
+        }
+        
+        .log-category-header {
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .log-category-header.game {
+            color: #4CAF50;
+        }
+        
+        .log-category-header.bug {
+            color: #F44336;
+        }
+        
+        .search-controls {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .search-input {
+            flex: 1;
+            padding: 0.6rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: white;
+            font-size: 0.9rem;
+        }
+        
+        .search-input:focus {
+            outline: none;
+            border-color: #4CAF50;
+            box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.3);
+        }
+        
+        .btn {
+            padding: 0.6rem 1.2rem;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+        
+        .btn:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+        }
+        
+        .btn:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn.secondary {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        .btn.secondary:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .log-viewer {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 12px;
+            padding: 1rem;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 0.85rem;
+            overflow: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+            line-height: 1.5;
+        }
+        
+        .log-viewer-header {
+            padding: 0.5rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .log-viewer-info {
+            font-size: 0.9rem;
+        }
+        
+        .log-highlight {
+            background: rgba(255, 215, 0, 0.3);
+            padding: 0 2px;
+            border-radius: 2px;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+        
+        .bug-search-panel {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background: rgba(244, 67, 54, 0.1);
+            border: 1px solid rgba(244, 67, 54, 0.3);
+            border-radius: 12px;
+        }
+        
+        .bug-search-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            color: #FF6B6B;
+            font-weight: bold;
+        }
+        
+        .bug-search-controls {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }
+        
+        .bug-report-item {
+            padding: 0.8rem;
+            margin: 0.5rem 0;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+        
+        .bug-report-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateX(5px);
+        }
+        
+        .bug-report-timestamp {
+            font-size: 0.85rem;
+            color: #FFD700;
+            margin-bottom: 0.3rem;
+        }
+        
+        .bug-report-description {
+            margin-bottom: 0.5rem;
+        }
+        
+        .bug-report-file {
+            font-size: 0.85rem;
+            opacity: 0.7;
+        }
+        
+        #bugReportResults {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .message {
+            padding: 0.8rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            display: none;
+            animation: fadeIn 0.3s ease-out;
+        }
+        
+        .message.success {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4CAF50;
+            border: 1px solid #4CAF50;
+            display: block;
+        }
+        
+        .message.error {
+            background: rgba(244, 67, 54, 0.2);
+            color: #F44336;
+            border: 1px solid #F44336;
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        /* Empty state styles */
+        .empty-state {
+            text-align: center;
+            opacity: 0.6;
+            font-size: 0.9rem;
+            padding: 2rem;
+        }
+        
+        /* Responsive design */
+        @media (max-width: 1200px) {
+            .log-viewer-container {
+                padding: 15px;
+            }
+            
+            .log-viewer-main {
+                flex-direction: column;
+            }
+            
+            .log-sidebar {
+                width: 100%;
+                max-height: 300px;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .log-header h1 {
+                font-size: 2rem;
+            }
+            
+            .search-controls {
+                flex-direction: column;
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+            }
+            
+            .btn {
+                width: 100%;
+            }
+        }
+        
+        /* Scrollbar styling */
+        .log-list-container::-webkit-scrollbar,
+        .log-viewer::-webkit-scrollbar,
+        #bugReportResults::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .log-list-container::-webkit-scrollbar-track,
+        .log-viewer::-webkit-scrollbar-track,
+        #bugReportResults::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+        }
+        
+        .log-list-container::-webkit-scrollbar-thumb,
+        .log-viewer::-webkit-scrollbar-thumb,
+        #bugReportResults::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+        
+        .log-list-container::-webkit-scrollbar-thumb:hover,
+        .log-viewer::-webkit-scrollbar-thumb:hover,
+        #bugReportResults::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        /* Loading spinner */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #4CAF50;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .loading-container {
+            text-align: center;
+            padding: 2rem;
+            opacity: 0.7;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="nav-bar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <span class="knight-icon">♘</span>
+                <span class="brand-text">Camelot Poker</span>
+            </div>
+            <div class="nav-links" id="navLinks">
+                <a href="/" class="nav-link">🃏 Calculator</a>
+                <a href="/game" class="nav-link">🎲 Play</a>
+                <a href="/system" class="nav-link">🛠️ System & Testing</a>
+                <a href="/logs" class="nav-link active">📜 Logs</a>
+                <a href="/docs" class="nav-link">📚 API Docs</a>
+                <a href="/about" class="nav-link">ℹ️ About</a>
+            </div>
+            <button class="nav-toggle" id="navToggle">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+    </nav>
+    
+    <div class="log-viewer-container">
+        <div class="log-header">
+            <h1>📜 Log Viewer</h1>
+            <p>Browse and search through system logs and bug reports</p>
+        </div>
+        
+        <div class="log-viewer-main">
+            <!-- Sidebar with log file list -->
+            <div class="log-sidebar">
+                <div class="section-header">
+                    <span class="icon">📁</span>
+                    <h2>Log Files</h2>
+                </div>
+                
+                <div class="log-list-container" id="logFileList">
+                    <div class="loading-container">
+                        <div class="loading"></div>
+                        <p>Loading log files...</p>
+                    </div>
+                </div>
+                
+                <div style="padding: 0.5rem; background: rgba(255, 255, 255, 0.05); border-radius: 8px; font-size: 0.85rem; text-align: center;">
+                    <div id="logFileSummary" style="opacity: 0.7;">
+                        Total: 0 files (0 MB)
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Main content area -->
+            <div class="log-content-area">
+                <div class="section-header">
+                    <span class="icon">📄</span>
+                    <h2>Log Content</h2>
+                </div>
+                
+                <div class="search-controls">
+                    <input type="text" 
+                           id="logSearchQuery" 
+                           class="search-input" 
+                           placeholder="Search in logs..." 
+                           onkeypress="if(event.key === 'Enter') searchCurrentLog()">
+                    <button class="btn" onclick="searchCurrentLog()">Search</button>
+                    <button class="btn secondary" onclick="clearSearch()">Clear</button>
+                </div>
+                
+                <div class="log-viewer-header" id="logHeader" style="display: none;">
+                    <div class="log-viewer-info">
+                        <strong id="currentFileName">No file selected</strong>
+                        <div style="font-size: 0.85rem; opacity: 0.7; margin-top: 0.2rem;">
+                            <span id="logLineInfo">0 lines</span> | 
+                            <span id="logSizeInfo">0 MB</span> |
+                            <span id="logModifiedInfo">Never</span>
+                        </div>
+                    </div>
+                    <div id="searchResultInfo" style="font-size: 0.85rem; opacity: 0.7;"></div>
+                </div>
+                
+                <div class="log-viewer" id="logContent">
+                    <div class="empty-state">
+                        Select a log file from the sidebar to view its contents
+                    </div>
+                </div>
+                
+                <div class="action-buttons">
+                    <button class="btn" onclick="refreshCurrentLog()" id="refreshBtn">
+                        🔄 Refresh
+                    </button>
+                    <button class="btn" onclick="tailCurrentLog()" id="tailBtn">
+                        📍 Show Last 50 Lines
+                    </button>
+                    <button class="btn secondary" onclick="downloadCurrentLog()" id="downloadBtn">
+                        📥 Download
+                    </button>
+                    <button class="btn secondary" onclick="toggleAutoRefresh()" id="autoRefreshBtn">
+                        ⏸️ Auto-Refresh: OFF
+                    </button>
+                </div>
+                
+                <div id="logMessage" class="message"></div>
+                
+                <!-- Bug Report Search Panel -->
+                <div class="bug-search-panel">
+                    <div class="bug-search-header">
+                        <span>🐛</span>
+                        <span>Bug Report Search</span>
+                    </div>
+                    
+                    <div class="bug-search-controls">
+                        <input type="text" 
+                               id="bugSearchQuery" 
+                               class="search-input" 
+                               placeholder="Search bug reports..." 
+                               style="flex: 1; min-width: 200px;">
+                        <label>Last</label>
+                        <input type="number" 
+                               id="bugSearchDays" 
+                               value="7" 
+                               min="1" 
+                               max="30" 
+                               style="width: 60px; padding: 0.6rem; background: rgba(255, 255, 255, 0.1); 
+                                      border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; 
+                                      color: white;">
+                        <span>days</span>
+                        <button class="btn" onclick="searchBugReports()">Search Bug Reports</button>
+                    </div>
+                    
+                    <div id="bugReportResults">
+                        <div class="empty-state">
+                            Enter search criteria above to find bug reports
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Mobile navigation toggle
+        document.getElementById('navToggle').addEventListener('click', function() {
+            document.getElementById('navLinks').classList.toggle('active');
+        });
+        
+        // Global variables
+        let currentLogFile = null;
+        let logFiles = [];
+        let autoRefreshInterval = null;
+        
+        // Load log files on page load
+        async function loadLogFiles() {
+            try {
+                const response = await fetch('/api/logs/list');
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    logFiles = [...data.logs.game, ...data.logs.bug_reports];
+                    
+                    const listDiv = document.getElementById('logFileList');
+                    
+                    // Build HTML for log files
+                    let html = '';
+                    
+                    // Game logs
+                    if (data.logs.game.length > 0) {
+                        html += '<div class="log-category">';
+                        html += '<div class="log-category-header game"><span>🎮</span> Game Logs (' + data.logs.game.length + ')</div>';
+                        html += data.logs.game.map(log => 
+                            `<div class="log-file-item" onclick="selectLogFile('${log.name}')" data-file="${log.name}">
+                                <div>
+                                    <div class="log-file-name">${log.name}</div>
+                                    <div class="log-file-info">${log.size_mb} MB</div>
+                                </div>
+                                <div class="log-file-info">${new Date(log.modified).toLocaleDateString()}</div>
+                            </div>`
+                        ).join('');
+                        html += '</div>';
+                    }
+                    
+                    // Bug report logs
+                    if (data.logs.bug_reports.length > 0) {
+                        html += '<div class="log-category">';
+                        html += '<div class="log-category-header bug"><span>🐛</span> Bug Reports (' + data.logs.bug_reports.length + ')</div>';
+                        html += data.logs.bug_reports.map(log => 
+                            `<div class="log-file-item" onclick="selectLogFile('${log.name}')" data-file="${log.name}">
+                                <div>
+                                    <div class="log-file-name">${log.name}</div>
+                                    <div class="log-file-info">${log.size_mb} MB</div>
+                                </div>
+                                <div class="log-file-info">${new Date(log.modified).toLocaleDateString()}</div>
+                            </div>`
+                        ).join('');
+                        html += '</div>';
+                    }
+                    
+                    if (logFiles.length === 0) {
+                        html = '<div class="empty-state">No log files found</div>';
+                    }
+                    
+                    listDiv.innerHTML = html;
+                    
+                    // Update summary
+                    document.getElementById('logFileSummary').textContent = 
+                        `Total: ${data.logs.total_count} files (${data.logs.total_size_mb} MB)`;
+                    
+                    // Auto-select the most recent log if none selected
+                    if (logFiles.length > 0 && !currentLogFile) {
+                        selectLogFile(logFiles[0].name);
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load log files:', error);
+                showMessage('Failed to load log files', 'error');
+                document.getElementById('logFileList').innerHTML = 
+                    '<div class="empty-state">Error loading log files</div>';
+            }
+        }
+        
+        // Select a log file
+        function selectLogFile(filename) {
+            currentLogFile = filename;
+            
+            // Update UI selection
+            document.querySelectorAll('.log-file-item').forEach(item => {
+                if (item.dataset.file === filename) {
+                    item.classList.add('selected');
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+            
+            // Show log header
+            document.getElementById('logHeader').style.display = 'flex';
+            document.getElementById('currentFileName').textContent = filename;
+            
+            // Update file info
+            const fileInfo = logFiles.find(f => f.name === filename);
+            if (fileInfo) {
+                document.getElementById('logSizeInfo').textContent = fileInfo.size_mb + ' MB';
+                document.getElementById('logModifiedInfo').textContent = 
+                    new Date(fileInfo.modified).toLocaleString();
+            }
+            
+            // Load content
+            loadLogContent();
+        }
+        
+        // Load log content
+        async function loadLogContent() {
+            if (!currentLogFile) {
+                showMessage('Please select a log file', 'error');
+                return;
+            }
+            
+            const contentDiv = document.getElementById('logContent');
+            contentDiv.innerHTML = '<div class="loading-container"><div class="loading"></div><p>Loading...</p></div>';
+            
+            try {
+                const search = document.getElementById('logSearchQuery').value;
+                const url = `/api/logs/read?filename=${encodeURIComponent(currentLogFile)}&lines=500`;
+                const params = search ? `&search=${encodeURIComponent(search)}` : '';
+                
+                const response = await fetch(url + params);
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    const content = data.content.join('');
+                    
+                    // Update line info
+                    document.getElementById('logLineInfo').textContent = 
+                        `${data.lines_returned} of ${data.total_lines} lines`;
+                    
+                    // Update search info
+                    if (search) {
+                        document.getElementById('searchResultInfo').textContent = 
+                            `Found ${data.matches || 0} matches`;
+                    } else {
+                        document.getElementById('searchResultInfo').textContent = '';
+                    }
+                    
+                    // Display content
+                    contentDiv.innerHTML = `<pre style="margin: 0;">${escapeHtml(content)}</pre>`;
+                    
+                    // Highlight search terms
+                    if (search) {
+                        highlightSearchTerms(contentDiv, search);
+                    }
+                } else {
+                    contentDiv.innerHTML = `<div class="empty-state">Error: ${data.error}</div>`;
+                }
+            } catch (error) {
+                console.error('Failed to load log content:', error);
+                contentDiv.innerHTML = '<div class="empty-state">Failed to load log content</div>';
+            }
+        }
+        
+        // Refresh current log
+        function refreshCurrentLog() {
+            if (!currentLogFile) {
+                showMessage('Please select a log file', 'error');
+                return;
+            }
+            loadLogContent();
+            showMessage('Log refreshed', 'success');
+        }
+        
+        // Show last N lines
+        async function tailCurrentLog() {
+            if (!currentLogFile) {
+                showMessage('Please select a log file', 'error');
+                return;
+            }
+            
+            const contentDiv = document.getElementById('logContent');
+            contentDiv.innerHTML = '<div class="loading-container"><div class="loading"></div><p>Loading last 50 lines...</p></div>';
+            
+            try {
+                const response = await fetch(`/api/logs/tail?filename=${encodeURIComponent(currentLogFile)}&lines=50`);
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    const content = data.content.join('');
+                    
+                    // Update line info
+                    document.getElementById('logLineInfo').textContent = 
+                        `Last ${data.lines_returned} lines`;
+                    document.getElementById('searchResultInfo').textContent = '';
+                    
+                    contentDiv.innerHTML = `<pre style="margin: 0;">${escapeHtml(content)}</pre>`;
+                    
+                    // Auto-scroll to bottom
+                    contentDiv.scrollTop = contentDiv.scrollHeight;
+                    
+                    showMessage('Showing last 50 lines', 'success');
+                } else {
+                    contentDiv.innerHTML = `<div class="empty-state">Error: ${data.error}</div>`;
+                }
+            } catch (error) {
+                console.error('Failed to tail log:', error);
+                contentDiv.innerHTML = '<div class="empty-state">Failed to load log tail</div>';
+            }
+        }
+        
+        // Search in current log
+        function searchCurrentLog() {
+            if (!currentLogFile) {
+                showMessage('Please select a log file', 'error');
+                return;
+            }
+            loadLogContent();
+        }
+        
+        // Clear search
+        function clearSearch() {
+            document.getElementById('logSearchQuery').value = '';
+            if (currentLogFile) {
+                loadLogContent();
+            }
+        }
+        
+        // Download current log
+        function downloadCurrentLog() {
+            if (!currentLogFile) {
+                showMessage('Please select a log file', 'error');
+                return;
+            }
+            
+            window.open(`/api/logs/download?filename=${encodeURIComponent(currentLogFile)}`, '_blank');
+            showMessage('Download started', 'success');
+        }
+        
+        // Toggle auto-refresh
+        function toggleAutoRefresh() {
+            const btn = document.getElementById('autoRefreshBtn');
+            
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+                btn.textContent = '⏸️ Auto-Refresh: OFF';
+                btn.classList.remove('active');
+                showMessage('Auto-refresh disabled', 'success');
+            } else {
+                autoRefreshInterval = setInterval(() => {
+                    if (currentLogFile) {
+                        loadLogContent();
+                    }
+                }, 5000); // Refresh every 5 seconds
+                btn.textContent = '▶️ Auto-Refresh: ON';
+                btn.classList.add('active');
+                showMessage('Auto-refresh enabled (5s)', 'success');
+            }
+        }
+        
+        // Search bug reports
+        async function searchBugReports() {
+            const query = document.getElementById('bugSearchQuery').value;
+            const days = parseInt(document.getElementById('bugSearchDays').value) || 7;
+            const resultsDiv = document.getElementById('bugReportResults');
+            
+            resultsDiv.innerHTML = '<div class="loading-container"><div class="loading"></div><p>Searching...</p></div>';
+            
+            try {
+                const params = new URLSearchParams();
+                if (query) params.append('query', query);
+                params.append('days', days);
+                
+                const response = await fetch(`/api/logs/search-bug-reports?${params}`);
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    if (data.bug_reports.length === 0) {
+                        resultsDiv.innerHTML = '<div class="empty-state">No bug reports found</div>';
+                    } else {
+                        resultsDiv.innerHTML = data.bug_reports.map(report => 
+                            `<div class="bug-report-item">
+                                <div class="bug-report-timestamp">${report.timestamp}</div>
+                                <div class="bug-report-description"><strong>Description:</strong> ${escapeHtml(report.description)}</div>
+                                <div class="bug-report-file">From: ${report.file}</div>
+                            </div>`
+                        ).join('');
+                    }
+                    
+                    showMessage(`Found ${data.total_found} bug reports`, 'success');
+                } else {
+                    resultsDiv.innerHTML = `<div class="empty-state">Error: ${data.error}</div>`;
+                }
+            } catch (error) {
+                console.error('Failed to search bug reports:', error);
+                resultsDiv.innerHTML = '<div class="empty-state">Failed to search bug reports</div>';
+            }
+        }
+        
+        // Utility functions
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function highlightSearchTerms(container, searchTerm) {
+            const regex = new RegExp(`(${searchTerm})`, 'gi');
+            const walker = document.createTreeWalker(
+                container,
+                NodeFilter.SHOW_TEXT,
+                null,
+                false
+            );
+            
+            const textNodes = [];
+            while (walker.nextNode()) {
+                textNodes.push(walker.currentNode);
+            }
+            
+            textNodes.forEach(node => {
+                const text = node.textContent;
+                if (regex.test(text)) {
+                    const span = document.createElement('span');
+                    span.innerHTML = text.replace(regex, '<span class="log-highlight">$1</span>');
+                    node.parentNode.replaceChild(span, node);
+                }
+            });
+        }
+        
+        function showMessage(message, type) {
+            const msgEl = document.getElementById('logMessage');
+            msgEl.textContent = message;
+            msgEl.className = 'message ' + type;
+            
+            setTimeout(() => {
+                msgEl.className = 'message';
+                msgEl.textContent = '';
+            }, 5000);
+        }
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadLogFiles();
+            
+            // Refresh log file list every 30 seconds
+            setInterval(loadLogFiles, 30000);
+        });
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+            }
+        });
+    </script>
+</body>
+</html>

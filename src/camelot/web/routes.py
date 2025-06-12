@@ -28,3 +28,21 @@ async def poker_game(request: Request):
         "poker_game.html",
         {"request": request, "title": "Camelot Poker Game"}
     )
+
+
+@router.get("/system", response_class=HTMLResponse)
+async def system_testing(request: Request):
+    """Render the system and testing utilities page."""
+    return templates.TemplateResponse(
+        "system_testing.html",
+        {"request": request, "title": "System & Testing - Camelot"}
+    )
+
+
+@router.get("/logs", response_class=HTMLResponse)
+async def log_viewer(request: Request):
+    """Render the log viewer page."""
+    return templates.TemplateResponse(
+        "log_viewer.html",
+        {"request": request, "title": "Log Viewer - Camelot"}
+    )

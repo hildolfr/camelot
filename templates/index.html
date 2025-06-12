@@ -2348,17 +2348,22 @@
     <!-- Navigation Bar -->
     <nav class="nav-bar">
         <div class="nav-container">
-            <div class="nav-brand" onclick="navigateToSection('calculator')" style="cursor: pointer;">
-                <h2>⚔️ Camelot</h2>
+            <div class="nav-brand">
+                <span class="knight-icon">♘</span>
+                <span class="brand-text">Camelot Poker</span>
             </div>
-            <div class="nav-buttons">
-                <button class="nav-btn active" data-section="calculator" onclick="navigateToSection('calculator')">
-                    🧮 Calculator
-                </button>
-                <button class="nav-btn" data-section="play" onclick="navigateToSection('play')">
-                    🃏 Play Poker
-                </button>
+            <div class="nav-links" id="navLinks">
+                <a href="/" class="nav-link active">🃏 Calculator</a>
+                <a href="/game" class="nav-link">🎲 Play</a>
+                <a href="/system" class="nav-link">🛠️ System & Testing</a>
+                <a href="/docs" class="nav-link">📚 API Docs</a>
+                <a href="/about" class="nav-link">ℹ️ About</a>
             </div>
+            <button class="nav-toggle" id="navToggle">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
         </div>
     </nav>
     

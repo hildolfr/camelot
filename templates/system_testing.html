@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/navigation.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #0f0f1e 100%);
+            color: rgba(255, 255, 255, 0.9);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+        }
+        
+        .system-container {
+            max-width: 1400px;
+            margin: 80px auto 20px;
+            padding: 20px;
+        }
+        
+        .system-header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding: 2rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .system-header h1 {
+            color: #FFD700;
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+        }
+        
+        .system-header p {
+            font-size: 1.1rem;
+            opacity: 0.8;
+        }
+        
+        .utilities-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        .utility-card {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 2rem;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+        
+        .utility-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            border-color: rgba(255, 215, 0, 0.3);
+        }
+        
+        .utility-card h2 {
+            color: #4CAF50;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .utility-card .icon {
+            font-size: 1.5rem;
+        }
+        
+        .utility-content {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            padding: 1rem;
+            margin: 1rem 0;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+        
+        .placeholder-list {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .placeholder-list li {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .placeholder-list li:last-child {
+            border-bottom: none;
+        }
+        
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4CAF50;
+            display: inline-block;
+        }
+        
+        .status-indicator.warning {
+            background: #FFC107;
+        }
+        
+        .status-indicator.error {
+            background: #F44336;
+        }
+        
+        .action-button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 0.8rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            margin-top: 1rem;
+            width: 100%;
+        }
+        
+        .action-button:hover {
+            background: #45a049;
+            transform: scale(1.05);
+        }
+        
+        .action-button:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .action-button.danger {
+            background: #F44336;
+            margin-top: 0.5rem;
+        }
+        
+        .action-button.danger:hover {
+            background: #D32F2F;
+        }
+        
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+        
+        #cacheMessage {
+            padding: 0.5rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            display: none;
+        }
+        
+        #cacheMessage.success {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4CAF50;
+            display: block;
+        }
+        
+        #cacheMessage.error, #dbMessage.error {
+            background: rgba(244, 67, 54, 0.2);
+            color: #F44336;
+            display: block;
+        }
+        
+        #dbMessage {
+            padding: 0.5rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            display: none;
+        }
+        
+        #dbMessage.success {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4CAF50;
+            display: block;
+        }
+        
+        h4 {
+            margin: 1rem 0 0.5rem 0;
+            color: #4CAF50;
+            font-size: 1rem;
+        }
+        
+        #topEntries {
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        
+        .top-entry {
+            padding: 0.3rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .top-entry:last-child {
+            border-bottom: none;
+        }
+        
+        .log-file-item {
+            padding: 0.5rem;
+            margin: 0.2rem 0;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .log-file-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateX(5px);
+        }
+        
+        .log-file-item.selected {
+            background: rgba(76, 175, 80, 0.2);
+            border: 1px solid #4CAF50;
+        }
+        
+        .log-file-info {
+            font-size: 0.85rem;
+            opacity: 0.7;
+        }
+        
+        .bug-report-item {
+            padding: 0.8rem;
+            margin: 0.5rem 0;
+            background: rgba(244, 67, 54, 0.1);
+            border: 1px solid rgba(244, 67, 54, 0.3);
+            border-radius: 8px;
+        }
+        
+        .bug-report-item .timestamp {
+            font-size: 0.85rem;
+            color: #FFD700;
+            margin-bottom: 0.3rem;
+        }
+        
+        .bug-report-item .description {
+            margin-bottom: 0.5rem;
+        }
+        
+        .log-highlight {
+            background: rgba(255, 215, 0, 0.2);
+            padding: 0 2px;
+        }
+        
+        .coming-soon {
+            opacity: 0.5;
+            font-style: italic;
+            text-align: center;
+            padding: 2rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <nav class="nav-bar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <span class="knight-icon">♘</span>
+                <span class="brand-text">Camelot Poker</span>
+            </div>
+            <div class="nav-links" id="navLinks">
+                <a href="/" class="nav-link">🃏 Calculator</a>
+                <a href="/game" class="nav-link">🎲 Play</a>
+                <a href="/system" class="nav-link active">🛠️ System & Testing</a>
+                <a href="/docs" class="nav-link">📚 API Docs</a>
+                <a href="/about" class="nav-link">ℹ️ About</a>
+            </div>
+            <button class="nav-toggle" id="navToggle">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+    </nav>
+    
+    <div class="system-container">
+        <div class="system-header">
+            <h1>🛠️ System & Testing Utilities</h1>
+            <p>Monitor system health, run diagnostics, and access testing utilities</p>
+        </div>
+        
+        <div class="utilities-grid">
+            <!-- System Status Card -->
+            <div class="utility-card" id="systemStatusCard">
+                <h2><span class="icon">📊</span> System Status</h2>
+                <div class="utility-content">
+                    <ul class="placeholder-list" id="systemStatusList">
+                        <li><span class="status-indicator" id="apiStatus"></span> API Server: <span id="apiStatusText">Checking...</span></li>
+                        <li><span class="status-indicator" id="cacheStatus"></span> Cache System: <span id="cacheStatusText">Checking...</span></li>
+                        <li><span class="status-indicator" id="gpuStatus"></span> GPU Acceleration: <span id="gpuStatusText">Checking...</span></li>
+                        <li><span class="status-indicator"></span> Platform: <span id="platformText">--</span></li>
+                        <li><span class="status-indicator"></span> Python: <span id="pythonVersion">--</span></li>
+                        <li><span class="status-indicator"></span> CPU Cores: <span id="cpuCount">--</span></li>
+                    </ul>
+                </div>
+                <button class="action-button" onclick="loadSystemStatus()">Refresh Status</button>
+                <div style="margin-top: 1rem; font-size: 0.85rem; opacity: 0.7;">
+                    Last updated: <span id="lastUpdated">Never</span>
+                </div>
+            </div>
+            
+            <!-- Cache Management Card -->
+            <div class="utility-card" id="cacheManagementCard">
+                <h2><span class="icon">💾</span> Cache Management</h2>
+                <div class="utility-content" id="cacheStats">
+                    <ul class="placeholder-list">
+                        <li>Memory Cache: <span id="memoryCacheSize">--</span> MB (<span id="memoryCacheEntries">--</span> entries)</li>
+                        <li>Disk Cache: <span id="diskCacheSize">--</span> MB (<span id="diskCacheEntries">--</span> entries)</li>
+                        <li>Hit Rate: <span id="cacheHitRate">--</span>%</li>
+                        <li>Total Hits: <span id="totalHits">--</span></li>
+                        <li>Total Misses: <span id="totalMisses">--</span></li>
+                        <li>Evictions: <span id="cacheEvictions">--</span></li>
+                    </ul>
+                </div>
+                <button class="action-button" id="clearInvalidBtn" onclick="clearInvalidCache()">Clear Invalid Entries</button>
+                <button class="action-button" id="refreshCacheStatsBtn" onclick="loadCacheStats()">Refresh Stats</button>
+                <button class="action-button danger" id="resetCacheBtn" onclick="resetCache()">Reset Entire Cache</button>
+                <div id="cacheMessage" style="margin-top: 1rem; text-align: center; font-weight: bold;"></div>
+            </div>
+            
+            <!-- Log Viewer Card -->
+            <div class="utility-card" id="logViewerCard">
+                <h2><span class="icon">📜</span> Log Viewer</h2>
+                <div class="utility-content">
+                    <ul class="placeholder-list">
+                        <li><span class="status-indicator"></span> Game Logs Available</li>
+                        <li><span class="status-indicator"></span> Bug Report Logs Available</li>
+                        <li><span class="status-indicator"></span> Real-time Log Monitoring</li>
+                        <li><span class="status-indicator"></span> Search & Filter Capabilities</li>
+                    </ul>
+                    <p style="margin-top: 1rem; opacity: 0.8;">
+                        Access comprehensive log viewing tools including search, filtering, 
+                        tail viewing, and bug report analysis.
+                    </p>
+                </div>
+                <a href="/logs" style="text-decoration: none;">
+                    <button class="action-button">Open Log Viewer</button>
+                </a>
+                <div style="margin-top: 1rem; padding: 1rem; background: rgba(255, 255, 255, 0.05); border-radius: 10px;">
+                    <h4 style="margin: 0 0 0.5rem 0; color: #FFD700;">Quick Stats</h4>
+                    <div id="logQuickStats" style="font-size: 0.85rem; opacity: 0.8;">
+                        <div>Loading log statistics...</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Testing Suite Card -->
+            <div class="utility-card">
+                <h2><span class="icon">🧪</span> Testing Suite</h2>
+                <div class="utility-content">
+                    <ul class="placeholder-list">
+                        <li>Unit Tests: -- passed</li>
+                        <li>Integration Tests: -- passed</li>
+                        <li>Performance Tests: -- ms avg</li>
+                        <li>Coverage: -- %</li>
+                    </ul>
+                </div>
+                <button class="action-button" disabled>Run All Tests</button>
+                <button class="action-button" disabled>Performance Benchmark</button>
+                <div class="coming-soon">Automated testing interface coming soon</div>
+            </div>
+            
+            <!-- Diagnostics Card -->
+            <div class="utility-card">
+                <h2><span class="icon">🔍</span> Diagnostics</h2>
+                <div class="utility-content">
+                    <ul class="placeholder-list">
+                        <li>Hand Category Detection: <span class="status-indicator error"></span></li>
+                        <li>GPU Solver Output: Incomplete</li>
+                        <li>Cache Validation: Passing</li>
+                        <li>API Response Time: -- ms</li>
+                    </ul>
+                </div>
+                <button class="action-button" disabled>Run Diagnostics</button>
+                <button class="action-button" disabled>Generate Report</button>
+                <div class="coming-soon">Diagnostic tools coming soon</div>
+            </div>
+            
+            <!-- Database Tools Card -->
+            <div class="utility-card" id="databaseToolsCard">
+                <h2><span class="icon">🗄️</span> Database Tools</h2>
+                <div class="utility-content">
+                    <h4 style="margin-top: 0; color: #FFD700;">Database Information</h4>
+                    <ul class="placeholder-list" id="dbInfoList">
+                        <li>Path: <span id="dbPath" style="font-size: 0.85rem;">--</span></li>
+                        <li>Size: <span id="dbSize">--</span> MB</li>
+                        <li>Tables: <span id="dbTables">--</span></li>
+                        <li>Total Entries: <span id="dbEntries">--</span></li>
+                        <li>Integrity: <span id="dbIntegrity">--</span></li>
+                        <li>Last Modified: <span id="dbModified">--</span></li>
+                    </ul>
+                    
+                    <h4 style="margin-top: 1rem; color: #FFD700;">Cache Statistics</h4>
+                    <ul class="placeholder-list" id="cacheStatsDetail">
+                        <li>Entries (24h): <span id="entries24h">--</span></li>
+                        <li>Entries (7d): <span id="entries7d">--</span></li>
+                        <li>Entries (30d): <span id="entries30d">--</span></li>
+                        <li>Avg Access Count: <span id="avgAccess">--</span></li>
+                        <li>Total Accesses: <span id="totalAccesses">--</span></li>
+                    </ul>
+                    
+                    <h4 style="margin-top: 1rem; color: #FFD700;">Most Accessed Entries</h4>
+                    <div id="topEntries" style="font-size: 0.85rem; background: rgba(0, 0, 0, 0.2); padding: 0.5rem; border-radius: 8px; min-height: 50px;">
+                        <div style="text-align: center; opacity: 0.6;">Loading...</div>
+                    </div>
+                </div>
+                
+                <button class="action-button" id="vacuumDbBtn" onclick="vacuumDatabase()">Vacuum Database</button>
+                <button class="action-button" id="exportDbBtn" onclick="exportDatabase()">Export Statistics</button>
+                
+                <div style="margin-top: 1rem; padding: 1rem; background: rgba(255, 255, 255, 0.05); border-radius: 8px;">
+                    <h4 style="margin: 0 0 0.5rem 0; color: #F44336;">Cleanup Tools</h4>
+                    <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                        <label>Remove entries older than:</label>
+                        <input type="number" id="cleanupDays" value="30" min="1" max="365" style="width: 60px; padding: 0.4rem; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 4px; color: white;">
+                        <span>days</span>
+                        <button class="action-button danger" style="margin: 0;" onclick="cleanupOldEntries()">Clean</button>
+                    </div>
+                </div>
+                
+                <div id="dbMessage" style="margin-top: 1rem; text-align: center; font-weight: bold;"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Mobile navigation toggle
+        document.getElementById('navToggle').addEventListener('click', function() {
+            document.getElementById('navLinks').classList.toggle('active');
+        });
+        
+        // Cache Management Functions
+        async function loadCacheStats() {
+            const card = document.getElementById('cacheManagementCard');
+            card.classList.add('loading');
+            
+            try {
+                const response = await fetch('/api/cache-status');
+                const data = await response.json();
+                
+                // Update memory cache stats
+                document.getElementById('memoryCacheSize').textContent = data.statistics.memory_size_mb.toFixed(2);
+                document.getElementById('memoryCacheEntries').textContent = data.statistics.memory_entries;
+                
+                // Update disk cache stats
+                document.getElementById('diskCacheSize').textContent = data.statistics.sqlite_size_mb.toFixed(2);
+                document.getElementById('diskCacheEntries').textContent = data.statistics.sqlite_entries;
+                
+                // Update performance stats
+                document.getElementById('cacheHitRate').textContent = data.statistics.hit_rate.toFixed(1);
+                document.getElementById('totalHits').textContent = 
+                    (data.statistics.memory_hits + data.statistics.sqlite_hits).toLocaleString();
+                document.getElementById('totalMisses').textContent = data.statistics.misses.toLocaleString();
+                document.getElementById('cacheEvictions').textContent = data.statistics.evictions.toLocaleString();
+                
+            } catch (error) {
+                console.error('Failed to load cache stats:', error);
+                showMessage('Failed to load cache statistics', 'error');
+            } finally {
+                card.classList.remove('loading');
+            }
+        }
+        
+        async function clearInvalidCache() {
+            if (!confirm('Clear all invalid cache entries?')) return;
+            
+            const btn = document.getElementById('clearInvalidBtn');
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/cache-cleanup', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showMessage(`Cleared ${data.count} invalid entries`, 'success');
+                    loadCacheStats(); // Refresh stats
+                } else {
+                    showMessage('Failed to clear invalid entries', 'error');
+                }
+            } catch (error) {
+                console.error('Failed to clear cache:', error);
+                showMessage('Failed to clear cache', 'error');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+        
+        async function resetCache() {
+            if (!confirm('⚠️ WARNING: This will clear ALL cached data. Continue?')) return;
+            
+            const btn = document.getElementById('resetCacheBtn');
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/cache-reset', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showMessage('Cache has been completely reset', 'success');
+                    loadCacheStats(); // Refresh stats
+                } else {
+                    showMessage('Failed to reset cache', 'error');
+                }
+            } catch (error) {
+                console.error('Failed to reset cache:', error);
+                showMessage('Failed to reset cache', 'error');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+        
+        function showMessage(message, type) {
+            const msgEl = document.getElementById('cacheMessage');
+            msgEl.textContent = message;
+            msgEl.className = type;
+            
+            setTimeout(() => {
+                msgEl.className = '';
+                msgEl.textContent = '';
+            }, 5000);
+        }
+        
+        // System Status Functions
+        async function loadSystemStatus() {
+            const card = document.getElementById('systemStatusCard');
+            card.classList.add('loading');
+            
+            try {
+                const response = await fetch('/api/system-status');
+                const data = await response.json();
+                
+                if (data.status === 'online') {
+                    // Update API status
+                    updateStatusIndicator('apiStatus', 'success');
+                    document.getElementById('apiStatusText').textContent = 'Online';
+                    
+                    // Update Cache status
+                    if (data.cache.active) {
+                        updateStatusIndicator('cacheStatus', 'success');
+                        document.getElementById('cacheStatusText').textContent = 
+                            `Active (${data.cache.total_entries} entries, ${data.cache.hit_rate}% hit rate)`;
+                    }
+                    
+                    // Update GPU status
+                    if (data.gpu.available) {
+                        updateStatusIndicator('gpuStatus', 'warning');
+                        document.getElementById('gpuStatusText').textContent = data.gpu.status;
+                    } else {
+                        updateStatusIndicator('gpuStatus', 'error');
+                        document.getElementById('gpuStatusText').textContent = 'Not available';
+                    }
+                    
+                    // Update system info
+                    document.getElementById('platformText').textContent = data.system.platform;
+                    document.getElementById('pythonVersion').textContent = data.system.python_version;
+                    document.getElementById('cpuCount').textContent = data.system.cpu_count;
+                    
+                    // Update timestamp
+                    document.getElementById('lastUpdated').textContent = new Date().toLocaleTimeString();
+                } else {
+                    updateStatusIndicator('apiStatus', 'error');
+                    document.getElementById('apiStatusText').textContent = 'Error';
+                }
+            } catch (error) {
+                console.error('Failed to load system status:', error);
+                updateStatusIndicator('apiStatus', 'error');
+                document.getElementById('apiStatusText').textContent = 'Offline';
+            } finally {
+                card.classList.remove('loading');
+            }
+        }
+        
+        function updateStatusIndicator(id, status) {
+            const indicator = document.getElementById(id);
+            indicator.classList.remove('warning', 'error');
+            if (status === 'warning') {
+                indicator.classList.add('warning');
+            } else if (status === 'error') {
+                indicator.classList.add('error');
+            }
+        }
+        
+        // Database Tools Functions
+        async function loadDatabaseInfo() {
+            const card = document.getElementById('databaseToolsCard');
+            card.classList.add('loading');
+            
+            try {
+                const response = await fetch('/api/database-info');
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    // Update database info
+                    document.getElementById('dbPath').textContent = data.database.path;
+                    document.getElementById('dbSize').textContent = data.database.size_mb;
+                    document.getElementById('dbIntegrity').textContent = data.database.integrity;
+                    document.getElementById('dbModified').textContent = new Date(data.database.modified).toLocaleString();
+                    
+                    // Update tables info
+                    const tableNames = Object.keys(data.tables);
+                    const totalEntries = Object.values(data.tables).reduce((sum, table) => sum + table.row_count, 0);
+                    document.getElementById('dbTables').textContent = tableNames.join(', ');
+                    document.getElementById('dbEntries').textContent = totalEntries.toLocaleString();
+                    
+                    // Update statistics if available
+                    if (data.statistics && data.statistics.age_distribution) {
+                        const age = data.statistics.age_distribution;
+                        document.getElementById('entries24h').textContent = age.last_24_hours.toLocaleString();
+                        document.getElementById('entries7d').textContent = age.last_7_days.toLocaleString();
+                        document.getElementById('entries30d').textContent = age.last_30_days.toLocaleString();
+                    }
+                    
+                    if (data.statistics && data.statistics.access_statistics) {
+                        const access = data.statistics.access_statistics;
+                        document.getElementById('avgAccess').textContent = access.avg_access_count;
+                        document.getElementById('totalAccesses').textContent = access.total_accesses.toLocaleString();
+                    }
+                    
+                    // Update most accessed entries
+                    if (data.statistics && data.statistics.most_accessed) {
+                        const topDiv = document.getElementById('topEntries');
+                        if (data.statistics.most_accessed.length > 0) {
+                            topDiv.innerHTML = data.statistics.most_accessed.map(entry => 
+                                `<div class="top-entry">
+                                    <strong>${entry.hero_hand}</strong> vs ${entry.opponents} opp 
+                                    ${entry.board !== 'Pre-flop' ? `| Board: ${entry.board}` : ''}
+                                    <span style="float: right; color: #FFD700;">${entry.access_count} hits</span>
+                                </div>`
+                            ).join('');
+                        } else {
+                            topDiv.innerHTML = '<div style="text-align: center; opacity: 0.6;">No entries yet</div>';
+                        }
+                    }
+                } else {
+                    showDbMessage('Failed to load database info: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                console.error('Failed to load database info:', error);
+                showDbMessage('Failed to load database information', 'error');
+            } finally {
+                card.classList.remove('loading');
+            }
+        }
+        
+        async function vacuumDatabase() {
+            if (!confirm('Vacuum the database? This may take a moment and will optimize storage.')) return;
+            
+            const btn = document.getElementById('vacuumDbBtn');
+            btn.disabled = true;
+            btn.textContent = 'Vacuuming...';
+            
+            try {
+                const response = await fetch('/api/database-vacuum', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showDbMessage(
+                        `Vacuum complete! Size: ${data.size_before_mb}MB → ${data.size_after_mb}MB (saved ${data.space_saved_mb}MB, ${data.space_saved_percent}%)`,
+                        'success'
+                    );
+                    loadDatabaseInfo(); // Refresh info
+                } else {
+                    showDbMessage('Vacuum failed', 'error');
+                }
+            } catch (error) {
+                console.error('Vacuum failed:', error);
+                showDbMessage('Failed to vacuum database', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Vacuum Database';
+            }
+        }
+        
+        async function cleanupOldEntries() {
+            const days = parseInt(document.getElementById('cleanupDays').value);
+            if (!days || days < 1) {
+                showDbMessage('Please enter a valid number of days', 'error');
+                return;
+            }
+            
+            if (!confirm(`Remove all cache entries older than ${days} days?`)) return;
+            
+            try {
+                const response = await fetch(`/api/database-cleanup-old?days=${days}`, { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showDbMessage(data.message, 'success');
+                    loadDatabaseInfo(); // Refresh info
+                    loadCacheStats(); // Refresh cache stats too
+                } else {
+                    showDbMessage('Cleanup failed', 'error');
+                }
+            } catch (error) {
+                console.error('Cleanup failed:', error);
+                showDbMessage('Failed to cleanup old entries', 'error');
+            }
+        }
+        
+        async function exportDatabase() {
+            const btn = document.getElementById('exportDbBtn');
+            btn.disabled = true;
+            btn.textContent = 'Exporting...';
+            
+            try {
+                const response = await fetch('/api/database-export', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    // Create downloadable JSON file
+                    const dataStr = JSON.stringify(result.data, null, 2);
+                    const blob = new Blob([dataStr], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `camelot_cache_export_${new Date().toISOString().split('T')[0]}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    
+                    showDbMessage('Export completed successfully', 'success');
+                } else {
+                    showDbMessage('Export failed', 'error');
+                }
+            } catch (error) {
+                console.error('Export failed:', error);
+                showDbMessage('Failed to export database', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Export Statistics';
+            }
+        }
+        
+        function showDbMessage(message, type) {
+            const msgEl = document.getElementById('dbMessage');
+            msgEl.textContent = message;
+            msgEl.className = type;
+            
+            setTimeout(() => {
+                msgEl.className = '';
+                msgEl.textContent = '';
+            }, 10000); // Show for 10 seconds for detailed messages
+        }
+        
+        // Log Quick Stats Functions
+        async function loadLogQuickStats() {
+            try {
+                const response = await fetch('/api/logs/list');
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    const statsDiv = document.getElementById('logQuickStats');
+                    statsDiv.innerHTML = `
+                        <div>Game Logs: <strong>${data.logs.game.length}</strong> files (${data.logs.game.reduce((sum, log) => sum + parseFloat(log.size_mb), 0).toFixed(2)} MB)</div>
+                        <div>Bug Reports: <strong>${data.logs.bug_reports.length}</strong> files (${data.logs.bug_reports.reduce((sum, log) => sum + parseFloat(log.size_mb), 0).toFixed(2)} MB)</div>
+                        <div style="margin-top: 0.3rem; padding-top: 0.3rem; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+                            Total: <strong>${data.logs.total_count}</strong> files (${data.logs.total_size_mb} MB)
+                        </div>
+                    `;
+                } else {
+                    document.getElementById('logQuickStats').innerHTML = 
+                        '<div style="color: #F44336;">Failed to load log statistics</div>';
+                }
+            } catch (error) {
+                console.error('Failed to load log quick stats:', error);
+                document.getElementById('logQuickStats').innerHTML = 
+                    '<div style="color: #F44336;">Error loading statistics</div>';
+            }
+        }
+        
+        // Ensure all functions are loaded when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            // Load all data
+            loadSystemStatus();
+            loadCacheStats();
+            loadDatabaseInfo();
+            loadLogQuickStats();
+            
+            // Auto-refresh every 30 seconds
+            setInterval(() => {
+                loadSystemStatus();
+                loadCacheStats();
+                loadDatabaseInfo();
+                loadLogQuickStats();
+            }, 30000);
+        });
+    </script>
+</body>
+</html>

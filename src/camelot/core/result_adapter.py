@@ -4,24 +4,49 @@ This ensures consistent API responses regardless of poker_knight version changes
 """
 
 from typing import Dict, Any, Tuple, Optional, Union
+import numpy as np
 
 
 class ResultAdapter:
     """Adapts poker_knight results to consistent API format."""
     
     @staticmethod
+    def convert_numpy_types(obj: Any) -> Any:
+        """
+        Recursively convert numpy types to Python native types for JSON serialization.
+        """
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, dict):
+            return {key: ResultAdapter.convert_numpy_types(value) for key, value in obj.items()}
+        elif isinstance(obj, (list, tuple)):
+            return [ResultAdapter.convert_numpy_types(item) for item in obj]
+        else:
+            return obj
+    
+    @staticmethod
     def normalize_confidence_interval(value: Any) -> Tuple[float, float]:
         """Convert confidence interval to tuple format."""
         if isinstance(value, tuple) and len(value) == 2:
-            return value
+            # Convert numpy types if present
+            return (ResultAdapter.convert_numpy_types(value[0]), 
+                    ResultAdapter.convert_numpy_types(value[1]))
         elif isinstance(value, list) and len(value) == 2:
-            return tuple(value)
+            # Convert numpy types if present
+            return (ResultAdapter.convert_numpy_types(value[0]), 
+                    ResultAdapter.convert_numpy_types(value[1]))
         elif isinstance(value, dict):
             # Handle dict format with 'low'/'high' or 'lower'/'upper' keys
             if 'low' in value and 'high' in value:
-                return (float(value['low']), float(value['high']))
+                return (ResultAdapter.convert_numpy_types(value['low']), 
+                        ResultAdapter.convert_numpy_types(value['high']))
             elif 'lower' in value and 'upper' in value:
-                return (float(value['lower']), float(value['upper']))
+                return (ResultAdapter.convert_numpy_types(value['lower']), 
+                        ResultAdapter.convert_numpy_types(value['upper']))
         
         # Default fallback
         return (0.0, 1.0)
@@ -49,7 +74,8 @@ class ResultAdapter:
         hand_categories = getattr(result, 'hand_category_frequencies', {})
         if hand_categories is None:
             hand_categories = {}
-        adapted["hand_categories"] = dict(hand_categories)  # Ensure it's a dict
+        # Convert numpy types to native Python types for JSON serialization
+        adapted["hand_categories"] = ResultAdapter.convert_numpy_types(hand_categories)
         
         # Advanced features (optional, may not exist)
         # Position aware equity
@@ -105,29 +131,7 @@ class ResultAdapter:
         if hasattr(result, 'bluff_catching_frequency'):
             adapted["bluff_catching_frequency"] = getattr(result, 'bluff_catching_frequency')
         
-        # GPU acceleration info (poker_knight v1.8.0+)
-        if hasattr(result, 'gpu_used'):
-            adapted["gpu_used"] = getattr(result, 'gpu_used', False)
-        if hasattr(result, 'backend'):
-            adapted["backend"] = getattr(result, 'backend', 'cpu')
-        if hasattr(result, 'device'):
-            device = getattr(result, 'device', None)
-            # Try to get a more descriptive GPU name
-            if device and 'CUDA Device' in str(device):
-                try:
-                    import subprocess
-                    # Use nvidia-smi to get GPU name
-                    output = subprocess.check_output(['nvidia-smi', '--query-gpu=name', '--format=csv,noheader,nounits'], 
-                                                   text=True, stderr=subprocess.DEVNULL)
-                    gpu_names = output.strip().split('\n')
-                    # Extract device number from string like "<CUDA Device 0>"
-                    import re
-                    match = re.search(r'CUDA Device (\d+)', str(device))
-                    if match and int(match.group(1)) < len(gpu_names):
-                        device = gpu_names[int(match.group(1))].strip()
-                except:
-                    pass  # Keep original device string if nvidia-smi fails
-            adapted["device"] = device
+        # No longer tracking GPU/CPU backend - only fresh vs cached matters
         
         return adapted
     

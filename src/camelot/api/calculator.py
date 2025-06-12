@@ -5,6 +5,11 @@ from typing import Dict, Optional
 
 from ..core.cache_init import get_cached_calculator, get_cache_manager
 from .models import CalculateRequest, CalculateResponse, HealthResponse
+from ..core.cache_storage import CacheStorage
+import os
+import glob
+from pathlib import Path
+from datetime import datetime
 
 
 router = APIRouter(prefix="/api", tags=["calculator"])
@@ -66,12 +71,17 @@ async def calculate_poker_odds(request: CalculateRequest) -> Dict:
             "error": None
         }
         
+        # Debug: Log hand_categories
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"API Response - hand_categories: {response_data['hand_categories']}")
+        logger.info(f"API Response - hand_categories type: {type(response_data['hand_categories'])}")
+        
         # Add any advanced features if present
         for key in ["position_aware_equity", "icm_equity", "multi_way_statistics", 
                     "defense_frequencies", "coordination_effects", "stack_to_pot_ratio",
                     "tournament_pressure", "fold_equity_estimates", "bubble_factor",
-                    "bluff_catching_frequency", "from_cache", "backend", "gpu_used", 
-                    "device", "cache_time_ms", "calculation_time_ms"]:
+                    "bluff_catching_frequency", "from_cache", "cache_time_ms", "calculation_time_ms"]:
             if key in result:
                 response_data[key] = result[key]
         
@@ -172,3 +182,580 @@ async def cleanup_invalid_cache() -> Dict:
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to clean cache: {str(e)}")
+
+
+@router.get("/database-info")
+async def get_database_info() -> Dict:
+    """Get detailed database information and statistics."""
+    import sqlite3
+    import os
+    from datetime import datetime
+    
+    try:
+        # Get cache storage instance
+        cache_storage = calculator.cache
+        db_path = os.path.expanduser(cache_storage.db_path)
+        
+        if not os.path.exists(db_path):
+            return {
+                "status": "error",
+                "error": "Database file not found"
+            }
+        
+        # Get file info
+        file_stats = os.stat(db_path)
+        file_size_mb = file_stats.st_size / (1024 * 1024)
+        
+        # Connect to database for detailed info
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        try:
+            # Get table information
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            tables = [row[0] for row in cursor.fetchall()]
+            
+            table_info = {}
+            for table in tables:
+                # Get row count
+                cursor.execute(f"SELECT COUNT(*) FROM {table}")
+                count = cursor.fetchone()[0]
+                
+                # Get column info
+                cursor.execute(f"PRAGMA table_info({table})")
+                columns = [row[1] for row in cursor.fetchall()]
+                
+                table_info[table] = {
+                    "row_count": count,
+                    "columns": columns
+                }
+            
+            # Get cache entry statistics
+            stats = {}
+            if "cache_entries" in tables:
+                # Age distribution
+                cursor.execute("""
+                    SELECT 
+                        COUNT(*) as total,
+                        SUM(CASE WHEN created_at > datetime('now', '-1 day') THEN 1 ELSE 0 END) as last_24h,
+                        SUM(CASE WHEN created_at > datetime('now', '-7 days') THEN 1 ELSE 0 END) as last_7d,
+                        SUM(CASE WHEN created_at > datetime('now', '-30 days') THEN 1 ELSE 0 END) as last_30d
+                    FROM cache_entries
+                """)
+                age_stats = cursor.fetchone()
+                
+                # Access statistics
+                cursor.execute("""
+                    SELECT 
+                        MIN(access_count) as min_access,
+                        MAX(access_count) as max_access,
+                        AVG(access_count) as avg_access,
+                        SUM(access_count) as total_access
+                    FROM cache_entries
+                """)
+                access_stats = cursor.fetchone()
+                
+                # Most accessed entries
+                cursor.execute("""
+                    SELECT hero_hand, num_opponents, board_cards, access_count
+                    FROM cache_entries
+                    ORDER BY access_count DESC
+                    LIMIT 5
+                """)
+                top_entries = cursor.fetchall()
+                
+                stats = {
+                    "age_distribution": {
+                        "total": age_stats[0] if age_stats else 0,
+                        "last_24_hours": age_stats[1] if age_stats else 0,
+                        "last_7_days": age_stats[2] if age_stats else 0,
+                        "last_30_days": age_stats[3] if age_stats else 0
+                    },
+                    "access_statistics": {
+                        "min_access_count": access_stats[0] if access_stats else 0,
+                        "max_access_count": access_stats[1] if access_stats else 0,
+                        "avg_access_count": round(access_stats[2], 2) if access_stats and access_stats[2] else 0,
+                        "total_accesses": access_stats[3] if access_stats else 0
+                    },
+                    "most_accessed": [
+                        {
+                            "hero_hand": entry[0],
+                            "opponents": entry[1],
+                            "board": entry[2] or "Pre-flop",
+                            "access_count": entry[3]
+                        } for entry in top_entries
+                    ] if top_entries else []
+                }
+            
+            # Get database integrity check
+            cursor.execute("PRAGMA integrity_check")
+            integrity = cursor.fetchone()[0]
+            
+            return {
+                "status": "success",
+                "database": {
+                    "path": db_path,
+                    "size_mb": round(file_size_mb, 2),
+                    "modified": datetime.fromtimestamp(file_stats.st_mtime).isoformat(),
+                    "integrity": integrity
+                },
+                "tables": table_info,
+                "statistics": stats
+            }
+            
+        finally:
+            conn.close()
+            
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
+@router.post("/database-vacuum")
+async def vacuum_database() -> Dict:
+    """Vacuum the database to reclaim space and optimize performance."""
+    import sqlite3
+    import os
+    
+    try:
+        cache_storage = calculator.cache
+        db_path = os.path.expanduser(cache_storage.db_path)
+        
+        # Get size before vacuum
+        size_before = os.path.getsize(db_path) / (1024 * 1024)
+        
+        # Perform vacuum
+        conn = sqlite3.connect(db_path)
+        try:
+            conn.execute("VACUUM")
+            conn.execute("ANALYZE")  # Update statistics
+            conn.commit()
+        finally:
+            conn.close()
+        
+        # Get size after vacuum
+        size_after = os.path.getsize(db_path) / (1024 * 1024)
+        space_saved = size_before - size_after
+        
+        return {
+            "status": "success",
+            "message": "Database vacuum completed successfully",
+            "size_before_mb": round(size_before, 2),
+            "size_after_mb": round(size_after, 2),
+            "space_saved_mb": round(space_saved, 2),
+            "space_saved_percent": round((space_saved / size_before) * 100, 1) if size_before > 0 else 0
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to vacuum database: {str(e)}")
+
+
+@router.post("/database-cleanup-old")
+async def cleanup_old_entries(days: int = 30) -> Dict:
+    """Remove cache entries older than specified days."""
+    import sqlite3
+    
+    try:
+        if days < 1:
+            raise ValueError("Days must be at least 1")
+            
+        cache_storage = calculator.cache
+        db_path = os.path.expanduser(cache_storage.db_path)
+        
+        conn = sqlite3.connect(db_path)
+        try:
+            cursor = conn.cursor()
+            
+            # Count entries to be deleted
+            cursor.execute(
+                "SELECT COUNT(*) FROM cache_entries WHERE created_at < datetime('now', ?)",
+                (f'-{days} days',)
+            )
+            count = cursor.fetchone()[0]
+            
+            # Delete old entries
+            cursor.execute(
+                "DELETE FROM cache_entries WHERE created_at < datetime('now', ?)",
+                (f'-{days} days',)
+            )
+            
+            conn.commit()
+            
+            # Also clear from memory cache if needed
+            cache_storage.clear_memory_cache()
+            
+            return {
+                "status": "success",
+                "message": f"Removed {count} entries older than {days} days",
+                "entries_removed": count
+            }
+            
+        finally:
+            conn.close()
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to cleanup old entries: {str(e)}")
+
+
+@router.post("/database-export")
+async def export_database_stats() -> Dict:
+    """Export database statistics and sample data."""
+    import sqlite3
+    import json
+    from datetime import datetime
+    
+    try:
+        cache_storage = calculator.cache
+        db_path = os.path.expanduser(cache_storage.db_path)
+        
+        conn = sqlite3.connect(db_path)
+        try:
+            cursor = conn.cursor()
+            
+            # Get summary statistics
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) as total_entries,
+                    SUM(access_count) as total_accesses,
+                    AVG(access_count) as avg_access_count,
+                    MIN(created_at) as oldest_entry,
+                    MAX(created_at) as newest_entry
+                FROM cache_entries
+            """)
+            summary = cursor.fetchone()
+            
+            # Get sample entries
+            cursor.execute("""
+                SELECT cache_key, hero_hand, num_opponents, board_cards, 
+                       simulation_mode, access_count, created_at
+                FROM cache_entries
+                ORDER BY access_count DESC
+                LIMIT 100
+            """)
+            samples = cursor.fetchall()
+            
+            export_data = {
+                "export_date": datetime.now().isoformat(),
+                "database_path": db_path,
+                "summary": {
+                    "total_entries": summary[0] if summary else 0,
+                    "total_accesses": summary[1] if summary else 0,
+                    "avg_access_count": round(summary[2], 2) if summary and summary[2] else 0,
+                    "oldest_entry": summary[3] if summary else None,
+                    "newest_entry": summary[4] if summary else None
+                },
+                "top_100_entries": [
+                    {
+                        "key": sample[0],
+                        "hero_hand": sample[1],
+                        "opponents": sample[2],
+                        "board": sample[3] or "Pre-flop",
+                        "mode": sample[4],
+                        "access_count": sample[5],
+                        "created": sample[6]
+                    } for sample in samples
+                ] if samples else []
+            }
+            
+            return {
+                "status": "success",
+                "data": export_data
+            }
+            
+        finally:
+            conn.close()
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to export database: {str(e)}")
+
+
+@router.get("/logs/list")
+async def list_log_files() -> Dict:
+    """List available log files."""
+    try:
+        log_dir = Path("logs")
+        if not log_dir.exists():
+            return {
+                "status": "error",
+                "error": "Log directory not found"
+            }
+        
+        log_files = []
+        
+        # Get all log files
+        for log_file in log_dir.glob("*.log*"):
+            if log_file.is_file():
+                stats = log_file.stat()
+                log_files.append({
+                    "name": log_file.name,
+                    "path": str(log_file),
+                    "size_mb": round(stats.st_size / (1024 * 1024), 2),
+                    "modified": datetime.fromtimestamp(stats.st_mtime).isoformat(),
+                    "type": "bug_report" if "bug_report" in log_file.name else "game"
+                })
+        
+        # Sort by modified time, newest first
+        log_files.sort(key=lambda x: x["modified"], reverse=True)
+        
+        # Group by type
+        game_logs = [f for f in log_files if f["type"] == "game"]
+        bug_logs = [f for f in log_files if f["type"] == "bug_report"]
+        
+        return {
+            "status": "success",
+            "logs": {
+                "game": game_logs,
+                "bug_reports": bug_logs,
+                "total_count": len(log_files),
+                "total_size_mb": round(sum(f["size_mb"] for f in log_files), 2)
+            }
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
+@router.get("/logs/read")
+async def read_log_file(
+    filename: str,
+    lines: int = 100,
+    offset: int = 0,
+    search: Optional[str] = None
+) -> Dict:
+    """Read contents of a log file."""
+    try:
+        # Validate filename to prevent directory traversal
+        if ".." in filename or "/" in filename or "\\" in filename:
+            raise ValueError("Invalid filename")
+        
+        log_path = Path("logs") / filename
+        if not log_path.exists() or not log_path.is_file():
+            return {
+                "status": "error",
+                "error": "Log file not found"
+            }
+        
+        # Read file in reverse for most recent entries first
+        all_lines = []
+        with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
+            all_lines = f.readlines()
+        
+        # Apply search filter if provided
+        if search:
+            search_lower = search.lower()
+            filtered_lines = []
+            for i, line in enumerate(all_lines):
+                if search_lower in line.lower():
+                    # Include context lines
+                    start = max(0, i - 2)
+                    end = min(len(all_lines), i + 3)
+                    context = all_lines[start:end]
+                    filtered_lines.extend(context)
+            all_lines = list(dict.fromkeys(filtered_lines))  # Remove duplicates while preserving order
+        
+        # Apply pagination
+        total_lines = len(all_lines)
+        start_idx = offset
+        end_idx = min(start_idx + lines, total_lines)
+        
+        # Reverse to show newest first
+        selected_lines = all_lines[start_idx:end_idx]
+        
+        return {
+            "status": "success",
+            "file": filename,
+            "content": selected_lines,
+            "total_lines": total_lines,
+            "offset": offset,
+            "lines_returned": len(selected_lines),
+            "has_more": end_idx < total_lines
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
+@router.get("/logs/tail")
+async def tail_log_file(filename: str, lines: int = 50) -> Dict:
+    """Get the last N lines of a log file."""
+    try:
+        # Validate filename
+        if ".." in filename or "/" in filename or "\\" in filename:
+            raise ValueError("Invalid filename")
+        
+        log_path = Path("logs") / filename
+        if not log_path.exists() or not log_path.is_file():
+            return {
+                "status": "error",
+                "error": "Log file not found"
+            }
+        
+        # Use a more efficient tail implementation for large files
+        import subprocess
+        try:
+            result = subprocess.run(
+                ["tail", "-n", str(lines), str(log_path)],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                content = result.stdout.splitlines()
+            else:
+                # Fallback to Python implementation
+                with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    all_lines = f.readlines()
+                    content = all_lines[-lines:] if len(all_lines) > lines else all_lines
+        except:
+            # Fallback to Python implementation
+            with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
+                all_lines = f.readlines()
+                content = all_lines[-lines:] if len(all_lines) > lines else all_lines
+        
+        return {
+            "status": "success",
+            "file": filename,
+            "content": content,
+            "lines_returned": len(content)
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
+@router.get("/logs/search-bug-reports")
+async def search_bug_reports(query: Optional[str] = None, days: int = 7) -> Dict:
+    """Search bug reports within the specified time range."""
+    try:
+        log_dir = Path("logs")
+        bug_reports = []
+        
+        # Calculate date threshold
+        from datetime import datetime, timedelta
+        threshold = datetime.now() - timedelta(days=days)
+        
+        # Search in bug report logs
+        for log_file in log_dir.glob("bug_reports*.log"):
+            if log_file.is_file():
+                stats = log_file.stat()
+                if datetime.fromtimestamp(stats.st_mtime) < threshold:
+                    continue
+                
+                with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
+                    current_report = None
+                    
+                    for line in f:
+                        if "USER_BUG_REPORT_START" in line:
+                            current_report = {
+                                "timestamp": "",
+                                "description": "",
+                                "context": [],
+                                "file": log_file.name
+                            }
+                        elif "USER_BUG_REPORT_END" in line and current_report:
+                            # Filter by query if provided
+                            if not query or query.lower() in current_report["description"].lower():
+                                bug_reports.append(current_report)
+                            current_report = None
+                        elif current_report:
+                            if "Timestamp:" in line:
+                                current_report["timestamp"] = line.split("Timestamp:", 1)[1].strip()
+                            elif "Description:" in line:
+                                current_report["description"] = line.split("Description:", 1)[1].strip()
+                            else:
+                                current_report["context"].append(line.strip())
+        
+        # Sort by timestamp, newest first
+        bug_reports.sort(key=lambda x: x["timestamp"], reverse=True)
+        
+        return {
+            "status": "success",
+            "bug_reports": bug_reports[:100],  # Limit to 100 most recent
+            "total_found": len(bug_reports),
+            "search_query": query,
+            "days_searched": days
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
+@router.get("/logs/download")
+async def download_log(filename: str):
+    """Get a log file for download."""
+    from fastapi.responses import FileResponse
+    
+    try:
+        # Validate filename
+        if ".." in filename or "/" in filename or "\\" in filename:
+            raise ValueError("Invalid filename")
+        
+        log_path = Path("logs") / filename
+        if not log_path.exists() or not log_path.is_file():
+            raise HTTPException(status_code=404, detail="Log file not found")
+        
+        return FileResponse(
+            path=str(log_path),
+            filename=filename,
+            media_type='text/plain'
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/system-status")
+async def get_system_status() -> Dict:
+    """Get system status information."""
+    import platform
+    import os
+    from datetime import datetime
+    
+    try:
+        # Get cache stats
+        cache_stats = calculator.get_cache_stats()
+        
+        # Simple memory estimation using resource module
+        memory_info = {"status": "available"}
+        try:
+            import resource
+            usage = resource.getrusage(resource.RUSAGE_SELF)
+            memory_info["process_memory_mb"] = usage.ru_maxrss / 1024  # Convert to MB
+        except:
+            memory_info["status"] = "unavailable"
+        
+        return {
+            "status": "online",
+            "timestamp": datetime.now().isoformat(),
+            "system": {
+                "platform": platform.system(),
+                "python_version": platform.python_version(),
+                "cpu_count": os.cpu_count(),
+                "memory_info": memory_info
+            },
+            "cache": {
+                "total_entries": cache_stats.get('memory_entries', 0) + cache_stats.get('sqlite_entries', 0),
+                "hit_rate": round(cache_stats.get('hit_rate', 0), 1),
+                "active": True
+            },
+            "api_version": "0.0.1"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e)
+        }

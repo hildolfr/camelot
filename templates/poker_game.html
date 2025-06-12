@@ -62,19 +62,24 @@
     <!-- Animated background particles -->
     <div class="particles" id="particles"></div>
     <!-- Navigation Bar -->
-    <nav class="nav-bar">
+    <nav class="navbar">
         <div class="nav-container">
             <div class="nav-brand">
-                <h2>⚔️ Camelot Poker</h2>
+                <span class="knight-icon">♘</span>
+                <span class="brand-text">Camelot Poker</span>
             </div>
-            <div class="nav-buttons">
-                <button class="nav-btn" onclick="window.location.href='/'">
-                    🧮 Calculator
-                </button>
-                <button class="nav-btn" onclick="leaveGame()">
-                    🚪 Leave Table
-                </button>
+            <div class="nav-links" id="navLinks">
+                <a href="/" class="nav-link">🃏 Calculator</a>
+                <a href="/game" class="nav-link active">🎲 Play</a>
+                <a href="/system" class="nav-link">🛠️ System & Testing</a>
+                <a href="/docs" class="nav-link">📚 API Docs</a>
+                <a href="/about" class="nav-link">ℹ️ About</a>
             </div>
+            <button class="nav-toggle" id="navToggle">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
         </div>
     </nav>
 
@@ -224,6 +229,11 @@
                     // No need to set up listeners here as it causes duplicate submissions
                 }
             }, 2000);
+            
+            // Mobile navigation toggle
+            document.getElementById('navToggle').addEventListener('click', function() {
+                document.getElementById('navLinks').classList.toggle('active');
+            });
         });
     </script>
 </body>

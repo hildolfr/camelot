@@ -298,6 +298,14 @@ document.addEventListener('DOMContentLoaded', () => {
         soundManager.init();
     }, { once: true });
     
+    // Mobile navigation toggle
+    const navToggle = document.getElementById('navToggle');
+    if (navToggle) {
+        navToggle.addEventListener('click', function() {
+            document.getElementById('navLinks').classList.toggle('active');
+        });
+    }
+    
     createParticles();
     generateCardGrid();
     setupEventListeners();
@@ -798,7 +806,6 @@ async function calculateOdds() {
             console.log('Calculation successful, data received:', data);
             console.log('Hand categories in response:', data.hand_categories);
             console.log('Is from cache?', data.from_cache || false);
-            console.log('Backend used:', data.backend || 'unknown');
             
             // Check if hand_categories is empty
             if (data.hand_categories && Object.keys(data.hand_categories).length === 0) {
@@ -1057,7 +1064,7 @@ function getStandardStats(data) {
                 <div class="value" style="font-size: 1.5rem;">${winPct}%</div>
             </div>
             <div class="stat-card" style="animation: slideUp 0.5s ease-out">
-                <h4>${getComputeIcon(data)} Computed</h4>
+                <h4>${getComputeIcon(data)} Source</h4>
                 <div class="value">${getComputeSource(data)}</div>
             </div>
         </div>
@@ -1139,7 +1146,7 @@ function getExpertStats(data) {
                     <div>Total Equity: <strong>${(equity * 100).toFixed(1)}%</strong>${createHelpIcon('Your overall share of the pot, including half of all tie scenarios')}</div>
                     <div>Pot Odds Needed: <strong>1:${potOdds}</strong>${createHelpIcon('The minimum pot odds required to make calling profitable')}</div>
                     <div>Opponents: <strong>${data.num_opponents}</strong></div>
-                    <div>Computed: <strong>${getComputeIcon(data)} ${getComputeSource(data)}</strong></div>
+                    <div>Source: <strong>${getComputeIcon(data)} ${getComputeSource(data)}</strong></div>
                     <div>Speed: <strong>${data.execution_time_ms.toFixed(0)}ms</strong></div>
                 </div>
             </div>
@@ -1377,23 +1384,12 @@ function getStrengthDescription(winPct) {
 
 // Get computation source icon
 function getComputeIcon(data) {
-    if (data.backend === 'cache') return '💾';
-    if (data.gpu_used || data.backend === 'cuda') return '🎮';
-    return '🖥️';
+    return data.from_cache ? '💾' : '✨';
 }
 
 // Get computation source description
 function getComputeSource(data) {
-    if (data.backend === 'cache') {
-        return 'Cached';
-    }
-    if (data.gpu_used || data.backend === 'cuda') {
-        if (data.device) {
-            return `GPU (${data.device})`;
-        }
-        return 'GPU';
-    }
-    return 'CPU';
+    return data.from_cache ? 'Cached' : 'Fresh';
 }
 
 // Create help icon with tooltip
