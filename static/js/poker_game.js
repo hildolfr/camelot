@@ -973,6 +973,13 @@ async function animateAwardPot(animation) {
     }, 50);
     
     // Update winner's stack with animation
+    // Calculate the stack before the win (current stack minus the pot amount)
+    const stackBeforeWin = player.stack - animation.amount;
+    
+    // First, update to show the stack before winning
+    updatePlayerStack(animation.winner_id, stackBeforeWin);
+    
+    // Then animate the win after the pot reaches the player
     setTimeout(() => {
         updatePlayerStack(animation.winner_id, player.stack);
         playerStack.classList.add('stack-increase');
@@ -1073,7 +1080,6 @@ function getPlayerById(playerId) {
 
 function updatePlayerStack(playerId, stack) {
     const stackElement = document.querySelector(`#player_${playerId} .player-stack`);
-    const playerInfo = document.getElementById(`player_${playerId}`);
     
     if (stackElement) {
         stackElement.textContent = `$${stack}`;
@@ -1231,7 +1237,6 @@ function updateUI() {
     
     // Update game info bar
     const potAmount = document.getElementById('potAmount');
-    const tablePotAmount = document.getElementById('tablePotAmount');
     const handNumber = document.getElementById('handNumber');
     const blindsInfo = document.getElementById('blindsInfo');
     
@@ -1349,8 +1354,11 @@ function updateBettingControls() {
     const controls = document.getElementById('bettingControls');
     const hero = gameState.players.find(p => !p.is_ai);
     
-    if (!hero || gameState.action_on !== hero.position || hero.has_folded) {
+    // Hide controls if game is over, not hero's turn, or hero has folded
+    if (!hero || gameState.action_on !== hero.position || hero.has_folded || 
+        gameState.phase === 'GAME_OVER' || gameState.phase === 'SHOWDOWN') {
         controls.classList.remove('active');
+        disableBettingControls();
         return;
     }
     
@@ -1682,6 +1690,12 @@ async function playerAction(action) {
     // Prevent multiple simultaneous actions
     if (isProcessingAction) {
         console.log('Already processing an action, ignoring click');
+        return;
+    }
+    
+    // Prevent actions during game over or showdown
+    if (!gameState || gameState.phase === 'GAME_OVER' || gameState.phase === 'SHOWDOWN') {
+        console.log('Cannot act during', gameState?.phase, 'phase');
         return;
     }
     

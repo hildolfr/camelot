@@ -1,10 +1,7 @@
 # Camelot Project TODO
 
 ## 🐛 Known Issues
-- Visual bug: During all-in showdown, winner's stack appears to update immediately when pot is awarded
-  - This is only a visual issue - the actual game logic is correct
-  - Player reported "his bet turned to 800 like he got my money right when we bet"
-  - Consider delaying stack update animation until after pot movement animation completes
+- None currently tracked
 
 ## ✅ Completed Features
 

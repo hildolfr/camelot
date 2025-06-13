@@ -1239,8 +1239,9 @@ class PokerGame:
                 logger.info(f"First to act: {player.name} at position {pos}")
                 return pos
         
-        logger.error("No active players found to act!")
-        return -1  # No active players (shouldn't happen)
+        # This is normal when all players are all-in
+        logger.info("No active players found to act (all players are all-in or folded)")
+        return -1
     
     def _get_next_active_position(self, current: int) -> int:
         """Get next active player position"""

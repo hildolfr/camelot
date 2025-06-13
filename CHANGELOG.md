@@ -6,6 +6,12 @@
 - Fixed celebration animation (confetti) playing when AI wins instead of only when hero wins
   - Bug was in animateCelebration function which created confetti for any winner
   - Now checks if winner_id === 'hero' before creating confetti effects
+- Fixed visual bug where winner's stack updated immediately during all-in
+  - Stack now shows pre-win amount first, then animates the increase when pot arrives
+  - Addresses user report: "his bet turned to 800 like he got my money right when we bet"
+- Changed misleading error log "No active players found to act!" to info level
+  - This is normal behavior when all players are all-in
+- Fixed TypeScript warnings for unused variables in poker_game.js
 - Fixed critical pot calculation bug that was creating extra chips by accumulating pots across betting rounds
   - Changed pot calculation to only run once at showdown instead of after each betting round
   - Renamed `total_bet_this_round` to `total_bet_this_hand` for clarity
