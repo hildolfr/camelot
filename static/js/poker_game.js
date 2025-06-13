@@ -972,7 +972,12 @@ async function animateAwardPot(animation) {
         animatedPot.style.transform = 'scale(1.2)';
     }, 50);
     
-    // Update winner's stack with animation
+    // Show the stack before winning if provided
+    if (animation.stack_before_win !== undefined) {
+        updatePlayerStack(animation.winner_id, animation.stack_before_win);
+    }
+    
+    // Update winner's stack with animation after pot reaches them
     setTimeout(() => {
         updatePlayerStack(animation.winner_id, player.stack);
         playerStack.classList.add('stack-increase');

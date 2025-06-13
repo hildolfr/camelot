@@ -10,6 +10,10 @@
   - API endpoint `/api/game/{game_id}/hand-history`
 
 ### Fixed
+- Fixed visual bug where winner's stack updated before pot animation
+  - Now sends pre-win stack value with award_pot animation
+  - Stack shows correct amount until pot animation completes
+  - Addresses user report: "ai got my money before I even lost!"
 - Fixed critical chip creation bug in pot calculation when players fold to all-in
   - Bug was double-counting winner's contribution when returning uncalled bets
   - Now correctly calculates pot from folded players only plus winner's matched amount

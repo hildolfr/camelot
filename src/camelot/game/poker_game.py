@@ -877,7 +877,8 @@ class PokerGame:
                     "type": "award_pot",
                     "winner_id": winner.id,
                     "amount": total_won,
-                    "delay": 500
+                    "delay": 500,
+                    "stack_before_win": winner.stack - total_won  # Include pre-win stack
                 })
             else:
                 logger.warning("No pots to award - this shouldn't happen!")
@@ -946,7 +947,8 @@ class PokerGame:
                             "amount": award_amount,
                             "pot_number": i + 1,
                             "delay": delay,
-                            "hand_name": evaluations[winner_id].name
+                            "hand_name": evaluations[winner_id].name,
+                            "stack_before_win": winner.stack - award_amount  # Include pre-win stack
                         })
                         
                         if len(winner_ids) > 1:
