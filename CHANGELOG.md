@@ -7,6 +7,81 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added - 2025-06-13
+- **Calculator Request Logs in Log Viewer UI**:
+  - Calculator logs now visible alongside game logs and bug reports
+  - New calculator logs category with 🧮 icon in blue (#2196F3)
+  - Calculator logs were already being collected but not displayed
+  - Updated log viewer description to mention calculator requests
+  - All calculator API requests are logged with session ID, IP, cards, results, and timing
+- **Collapsible Log Categories**:
+  - Log categories (Game, Calculator, Bug Reports) are now collapsible
+  - Categories default to collapsed state for cleaner initial view
+  - Click on category header to expand/collapse the file list
+  - Chevron icon (▼) indicates expand/collapse state with smooth rotation
+  - Expand/collapse state is saved to localStorage and restored on page reload
+  - Improved visual separation between categories with subtle backgrounds
+  - Smooth animations for expand/collapse transitions
+
+### Fixed - 2025-01-06
+- **Fixed tournament mode 500 error**: Updated API response model to correctly handle `tournament_pressure` field
+  - Changed from `Dict[str, float]` to `Dict[str, Any]` to accommodate mixed types
+  - poker_knightNG returns `stage: 'early'` as a string, not a float
+  - Tournament mode calculations now work correctly with stack_sizes and pot_size
+- **Fixed position dropdown in web UI**: Updated position options to match poker_knightNG accepted values
+  - Removed specific positions (UTG, MP, CO) that weren't recognized by the solver
+  - Replaced with position categories: early, middle, late (plus button, sb, bb)
+  - Updated position help modal to explain the position groupings
+  - Position-aware calculations now work correctly
+
+### Changed - 2025-01-06
+- **Updated UI for poker_knightNG API v2 changes**:
+  - Changed field existence checks from `!== undefined` to `> 0` throughout UI
+  - Expert view now always shows Advanced Decision Metrics section
+  - Fields with 0 values are displayed with reduced opacity and explanatory text
+  - Mathematician view shows all fields with explanatory notes for 0 values
+  - Simplified API request building (removed conditional parameter comments)
+- **New API Behavior Integrated**:
+  - poker_knightNG now returns all advanced fields with 0 values when not calculable
+  - Multi-way analysis now triggers with 2+ players (previously 3+)
+  - `hand_vulnerability` and `positional_advantage_score` are always calculated
+  - `spr` returns stack in BBs when pot_size=0
+  - `commitment_threshold` always calculated based on SPR
+- **UI Improvements**:
+  - Board Analysis section shows even without board cards (with "Requires 3+ board cards" note)
+  - Position Value shows "No position specified" when 0
+  - Pot Odds & MDF section indicates "No bet facing" when values are 0
+  - SPR section shows "No pot/stacks specified" when 0
+- **Created Update Plans**: 
+  - `plans/poker_knightng_update_20250106.md`
+  - `plans/poker_knightng_integration_update_20250106.md`
+
+### Changed
+- **Major Update**: Migrated from poker_knight to poker_knightNG solver module
+- Integrated poker_knightNG server API with GPU acceleration
+- Added singleton PokerServerManager for GPU keep-alive (60s warmth retention)
+- Implemented card format conversion ('10' → 'T') for poker_knightNG compatibility
+- Added all new poker_knightNG analysis fields:
+  - SPR (Stack-to-Pot Ratio) and commitment threshold
+  - Pot odds, MDF (Minimum Defense Frequency), equity needed
+  - Board texture analysis (dry/dynamic/wet classification)
+  - Nuts analysis and draw combinations
+  - Positional advantage score
+  - Hand vulnerability metrics
+- Added batch calculation endpoint `/api/calculate-batch`
+- Updated AI player to use advanced metrics for decision making
+- Enhanced UI calculator with new "Advanced Decision Metrics" section
+- Updated cache manager for hybrid caching (SQLite + GPU warmth)
+- Added comprehensive test files for poker_knightNG integration
+- Achieved ~2-5ms response times with warm GPU (99.5% latency reduction)
+- Cold start metrics excluded from performance tracking
+- Batch processing capability for multiple calculations
+- Added betting action interface in tournament mode:
+  - Action facing selector (check/bet/raise/re-raise)
+  - Bet size input for pot-relative betting
+  - Automatic street detection based on board cards
+  - UI clearly indicates this enables advanced metrics
+
 ### Fixed
 - Cache warming indicator now correctly shows new entries added this session instead of total cache count
 - Cache warming progress now displays as "+X (Y%)" to clarify what's being added

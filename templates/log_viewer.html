@@ -137,6 +137,10 @@
         
         .log-category {
             margin-bottom: 1rem;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 12px;
+            padding: 0.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.05);
         }
         
         .log-category-header {
@@ -145,10 +149,43 @@
             display: flex;
             align-items: center;
             gap: 0.5rem;
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 8px;
+            transition: background 0.2s ease;
+            user-select: none;
+        }
+        
+        .log-category-header:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        .log-category-header .chevron {
+            transition: transform 0.3s ease;
+            font-size: 0.8rem;
+            opacity: 0.7;
+        }
+        
+        .log-category-header.collapsed .chevron {
+            transform: rotate(-90deg);
+        }
+        
+        .log-category-items {
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            max-height: 500px;
+        }
+        
+        .log-category-items.collapsed {
+            max-height: 0;
         }
         
         .log-category-header.game {
             color: #4CAF50;
+        }
+        
+        .log-category-header.calculator {
+            color: #2196F3;
         }
         
         .log-category-header.bug {
@@ -455,7 +492,7 @@
     <div class="log-viewer-container">
         <div class="log-header">
             <h1>📜 Log Viewer</h1>
-            <p>Browse and search through system logs and bug reports</p>
+            <p>Browse and search through system logs, calculator requests, and bug reports</p>
         </div>
         
         <div class="log-viewer-main">
@@ -578,6 +615,8 @@
         let currentLogFile = null;
         let logFiles = [];
         let autoRefreshInterval = null;
+        // Default to collapsed state for all categories
+        let categoryStates = JSON.parse(localStorage.getItem('logCategoryStates') || '{"game":"collapsed","calculator":"collapsed","bug":"collapsed"}');
         
         // Load log files on page load
         async function loadLogFiles() {
@@ -586,7 +625,7 @@
                 const data = await response.json();
                 
                 if (data.status === 'success') {
-                    logFiles = [...data.logs.game, ...data.logs.bug_reports];
+                    logFiles = [...data.logs.game, ...data.logs.bug_reports, ...data.logs.calculator];
                     
                     const listDiv = document.getElementById('logFileList');
                     
@@ -596,7 +635,11 @@
                     // Game logs
                     if (data.logs.game.length > 0) {
                         html += '<div class="log-category">';
-                        html += '<div class="log-category-header game"><span>🎮</span> Game Logs (' + data.logs.game.length + ')</div>';
+                        html += '<div class="log-category-header game collapsed" onclick="toggleCategory(\'game\')" data-category="game">';
+                        html += '<span class="chevron">▼</span>';
+                        html += '<span>🎮</span> Game Logs (' + data.logs.game.length + ')';
+                        html += '</div>';
+                        html += '<div class="log-category-items collapsed" data-category="game">';
                         html += data.logs.game.map(log => 
                             `<div class="log-file-item" onclick="selectLogFile('${log.name}')" data-file="${log.name}">
                                 <div>
@@ -607,12 +650,38 @@
                             </div>`
                         ).join('');
                         html += '</div>';
+                        html += '</div>';
+                    }
+                    
+                    // Calculator logs
+                    if (data.logs.calculator.length > 0) {
+                        html += '<div class="log-category">';
+                        html += '<div class="log-category-header calculator collapsed" onclick="toggleCategory(\'calculator\')" data-category="calculator">';
+                        html += '<span class="chevron">▼</span>';
+                        html += '<span>🧮</span> Calculator Logs (' + data.logs.calculator.length + ')';
+                        html += '</div>';
+                        html += '<div class="log-category-items collapsed" data-category="calculator">';
+                        html += data.logs.calculator.map(log => 
+                            `<div class="log-file-item" onclick="selectLogFile('${log.name}')" data-file="${log.name}">
+                                <div>
+                                    <div class="log-file-name">${log.name}</div>
+                                    <div class="log-file-info">${log.size_mb} MB</div>
+                                </div>
+                                <div class="log-file-info">${new Date(log.modified).toLocaleDateString()}</div>
+                            </div>`
+                        ).join('');
+                        html += '</div>';
+                        html += '</div>';
                     }
                     
                     // Bug report logs
                     if (data.logs.bug_reports.length > 0) {
                         html += '<div class="log-category">';
-                        html += '<div class="log-category-header bug"><span>🐛</span> Bug Reports (' + data.logs.bug_reports.length + ')</div>';
+                        html += '<div class="log-category-header bug collapsed" onclick="toggleCategory(\'bug\')" data-category="bug">';
+                        html += '<span class="chevron">▼</span>';
+                        html += '<span>🐛</span> Bug Reports (' + data.logs.bug_reports.length + ')';
+                        html += '</div>';
+                        html += '<div class="log-category-items collapsed" data-category="bug">'; 
                         html += data.logs.bug_reports.map(log => 
                             `<div class="log-file-item" onclick="selectLogFile('${log.name}')" data-file="${log.name}">
                                 <div>
@@ -623,6 +692,7 @@
                             </div>`
                         ).join('');
                         html += '</div>';
+                        html += '</div>';
                     }
                     
                     if (logFiles.length === 0) {
@@ -630,6 +700,20 @@
                     }
                     
                     listDiv.innerHTML = html;
+                    
+                    // Restore category states
+                    Object.keys(categoryStates).forEach(category => {
+                        const header = document.querySelector(`.log-category-header[data-category="${category}"]`);
+                        const items = document.querySelector(`.log-category-items[data-category="${category}"]`);
+                        if (header && items) {
+                            if (categoryStates[category] === 'expanded') {
+                                // Remove the default collapsed state
+                                header.classList.remove('collapsed');
+                                items.classList.remove('collapsed');
+                            }
+                            // If 'collapsed' or unset, keep the default collapsed state
+                        }
+                    });
                     
                     // Update summary
                     document.getElementById('logFileSummary').textContent = 
@@ -645,6 +729,25 @@
                 showMessage('Failed to load log files', 'error');
                 document.getElementById('logFileList').innerHTML = 
                     '<div class="empty-state">Error loading log files</div>';
+            }
+        }
+        
+        // Toggle category expand/collapse
+        function toggleCategory(category) {
+            const header = document.querySelector(`.log-category-header[data-category="${category}"]`);
+            const items = document.querySelector(`.log-category-items[data-category="${category}"]`);
+            
+            if (header && items) {
+                header.classList.toggle('collapsed');
+                items.classList.toggle('collapsed');
+                
+                // Save state - now we explicitly track both collapsed and expanded states
+                if (header.classList.contains('collapsed')) {
+                    categoryStates[category] = 'collapsed';
+                } else {
+                    categoryStates[category] = 'expanded';
+                }
+                localStorage.setItem('logCategoryStates', JSON.stringify(categoryStates));
             }
         }
         
