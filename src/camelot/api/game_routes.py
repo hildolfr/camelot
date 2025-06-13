@@ -142,6 +142,40 @@ async def get_game_state(game_id: str) -> Dict[str, Any]:
     }
 
 
+@router.post("/{game_id}/deal-next-cards")
+async def deal_next_cards(game_id: str) -> Dict[str, Any]:
+    """Deal cards for the next phase."""
+    game = active_games.get(game_id)
+    if not game:
+        raise HTTPException(status_code=404, detail="Game not found")
+    
+    try:
+        result = game.deal_next_phase_cards()
+        if not result.get("success", False):
+            raise HTTPException(status_code=400, detail=result.get("error", "Cannot deal cards"))
+        return result
+    except Exception as e:
+        logger.error(f"Error dealing next cards: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{game_id}/advance-all-in-phase")
+async def advance_all_in_phase(game_id: str) -> Dict[str, Any]:
+    """Advance to next phase in all-in situation."""
+    game = active_games.get(game_id)
+    if not game:
+        raise HTTPException(status_code=404, detail="Game not found")
+    
+    try:
+        result = game.advance_all_in_phase()
+        if not result.get("success", False):
+            raise HTTPException(status_code=400, detail=result.get("error", "Cannot advance phase"))
+        return result
+    except Exception as e:
+        logger.error(f"Error advancing all-in phase: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/{game_id}/hand-strength/{player_id}")
 async def get_hand_strength(game_id: str, player_id: str) -> Dict[str, Any]:
     """Get current hand strength for a player."""

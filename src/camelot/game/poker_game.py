@@ -138,6 +138,11 @@ class GameState:
     last_action_info: Dict[str, Any] = field(default_factory=dict)
     pending_animations: List[Dict[str, Any]] = field(default_factory=list)
     
+    # Turn-based card dealing
+    awaiting_card_deal: bool = False
+    all_players_all_in: bool = False
+    cards_dealt_for_phase: Dict[GamePhase, bool] = field(default_factory=dict)
+    
     def get_active_players(self) -> List[Player]:
         """Get all active (not folded) players who can still act"""
         # Note: This should only be used for determining who CAN act
@@ -679,66 +684,36 @@ class PokerGame:
                 logger.error("This should never happen - clearing board")
                 self.state.board_cards = []
             
-            # Deal flop
+            # Advance to FLOP phase
             self.state.phase = GamePhase.FLOP
-            logger.info(f"Advanced to FLOP phase. Board cards before dealing: {len(self.state.board_cards)}")
-            burn = self.state.deck.pop()  # Burn card
+            logger.info(f"Advanced to FLOP phase. Cards will be dealt on request.")
             
-            animations.append({
-                "type": "burn_card",
-                "delay": 0
-            })
-            
-            # Deal 3 flop cards with stagger
-            base_delay = len(animations) * 500 if animations else 1000  # Accumulate delays
-            for i in range(3):
-                card = self.state.deck.pop()
-                self.state.board_cards.append(card)
-                animations.append({
-                    "type": "deal_board_card",
-                    "card": card,
-                    "position": i,
-                    "delay": base_delay + (i * 400)  # Increased delay for better visibility
-                })
-            logger.info(f"Dealt flop: {self.state.board_cards}")
+            # Mark that we need cards dealt
+            self.state.awaiting_card_deal = True
             
         elif self.state.phase == GamePhase.FLOP:
             # Sanity check: board should have exactly 3 cards in flop
             if len(self.state.board_cards) != 3:
                 logger.error(f"ERROR: Board has {len(self.state.board_cards)} cards in FLOP phase, expected 3! Cards: {self.state.board_cards}")
             
-            # Deal turn
+            # Advance to TURN phase
             self.state.phase = GamePhase.TURN
-            logger.info(f"Advanced to TURN phase. Board cards before dealing: {len(self.state.board_cards)}")
-            burn = self.state.deck.pop()
-            card = self.state.deck.pop()
-            self.state.board_cards.append(card)
-            logger.info(f"Dealt turn: {card}. Total board: {self.state.board_cards}")
+            logger.info(f"Advanced to TURN phase. Cards will be dealt on request.")
             
-            base_delay = len(animations) * 300 if animations else 1000  # Accumulate delays
-            animations.extend([
-                {"type": "burn_card", "delay": base_delay},
-                {"type": "deal_board_card", "card": card, "position": 3, "delay": base_delay + 500}  # Increased delay
-            ])
+            # Mark that we need cards dealt
+            self.state.awaiting_card_deal = True
             
         elif self.state.phase == GamePhase.TURN:
             # Sanity check: board should have exactly 4 cards in turn
             if len(self.state.board_cards) != 4:
                 logger.error(f"ERROR: Board has {len(self.state.board_cards)} cards in TURN phase, expected 4! Cards: {self.state.board_cards}")
             
-            # Deal river
+            # Advance to RIVER phase
             self.state.phase = GamePhase.RIVER
-            logger.info(f"Advanced to RIVER phase. Board cards before dealing: {len(self.state.board_cards)}")
-            burn = self.state.deck.pop()
-            card = self.state.deck.pop()
-            self.state.board_cards.append(card)
-            logger.info(f"Dealt river: {card}. Total board: {self.state.board_cards}")
+            logger.info(f"Advanced to RIVER phase. Cards will be dealt on request.")
             
-            base_delay = len(animations) * 300 if animations else 1000  # Accumulate delays
-            animations.extend([
-                {"type": "burn_card", "delay": base_delay},
-                {"type": "deal_board_card", "card": card, "position": 4, "delay": base_delay + 500}  # Increased delay
-            ])
+            # Mark that we need cards dealt
+            self.state.awaiting_card_deal = True
             
         elif self.state.phase == GamePhase.RIVER:
             # Before going to showdown, ensure we have all 5 community cards
@@ -782,31 +757,24 @@ class PokerGame:
             
             # If all remaining players are all-in (including when one will bust the other)
             if len(active_players) == 0 and len(players_in_hand) > 1:
-                logger.info("All players are all-in - automatically advancing to next phase")
-                # Add a visual notification and longer delay before dealing remaining cards
+                logger.info("All players are all-in - marking for turn-based card dealing")
+                
+                # Mark that all players are all-in
+                self.state.all_players_all_in = True
+                
+                # Add a visual notification
                 animations.append({
                     "type": "delay",
-                    "delay": 3000,  # Increased delay
-                    "message": "All players all-in! Dealing remaining cards..."
+                    "delay": 2000,
+                    "message": "All players all-in!"
                 })
                 
-                # Continue dealing all remaining cards to showdown
-                # Keep track of cumulative delay for proper animation timing
-                phase_count = 0
-                while self.state.phase not in [GamePhase.SHOWDOWN, GamePhase.GAME_OVER]:
-                    phase_count += 1
-                    logger.info(f"All-in: Advancing to phase {phase_count}")
-                    next_phase_result = self._advance_phase()
-                    
-                    # Add extra delay between phases for visibility
-                    if next_phase_result["animations"]:
-                        animations.append({
-                            "type": "delay",
-                            "delay": 1000,
-                            "message": ""
-                        })
-                    
-                    animations.extend(next_phase_result["animations"])
+                # Tell frontend to request cards
+                animations.append({
+                    "type": "request_cards",
+                    "phase": self.state.phase.name,
+                    "delay": 1000
+                })
                 
                 return {"animations": animations}
         
@@ -821,6 +789,14 @@ class PokerGame:
             "sound": "card_flip",
             "delay": 0
         })
+        
+        # If we're awaiting card deal, add animation to request cards
+        if self.state.awaiting_card_deal:
+            animations.append({
+                "type": "request_cards",
+                "phase": self.state.phase.name,
+                "delay": 1000
+            })
         
         # Update pot display but don't calculate pots yet
         # Just track total contributions for display purposes
@@ -838,6 +814,150 @@ class PokerGame:
         self._last_phase_change = time.time()
         
         return {"animations": animations}
+    
+    def deal_next_phase_cards(self) -> Dict[str, Any]:
+        """Deal cards for the next phase when requested by frontend"""
+        logger.info(f"\n{'='*50}\nDEALING CARDS FOR PHASE: {self.state.phase.name}\n{'='*50}")
+        
+        animations = []
+        
+        # Check if cards have already been dealt for this phase
+        if self.state.cards_dealt_for_phase.get(self.state.phase, False):
+            logger.warning(f"Cards already dealt for phase {self.state.phase.name}")
+            return {"success": False, "error": "Cards already dealt for this phase"}
+        
+        # Check if we should be dealing cards
+        if not self.state.awaiting_card_deal:
+            logger.warning("Not awaiting card deal")
+            return {"success": False, "error": "Not awaiting card deal"}
+        
+        # Deal cards based on current phase
+        if self.state.phase == GamePhase.FLOP:
+            # Deal flop (3 cards)
+            if len(self.state.board_cards) > 0:
+                logger.error(f"ERROR: Board already has {len(self.state.board_cards)} cards!")
+                return {"success": False, "error": "Board already has cards"}
+            
+            # Burn card
+            burn = self.state.deck.pop()
+            animations.append({"type": "burn_card", "delay": 0})
+            
+            # Deal 3 flop cards
+            for i in range(3):
+                card = self.state.deck.pop()
+                self.state.board_cards.append(card)
+                animations.append({
+                    "type": "deal_board_card",
+                    "card": card,
+                    "position": i,
+                    "delay": 500 + (i * 400)
+                })
+            
+            logger.info(f"Dealt flop: {self.state.board_cards}")
+            
+        elif self.state.phase == GamePhase.TURN:
+            # Deal turn (1 card)
+            if len(self.state.board_cards) != 3:
+                logger.error(f"ERROR: Board has {len(self.state.board_cards)} cards, expected 3")
+                return {"success": False, "error": "Invalid board state"}
+            
+            # Burn card
+            burn = self.state.deck.pop()
+            animations.append({"type": "burn_card", "delay": 0})
+            
+            # Deal turn card
+            card = self.state.deck.pop()
+            self.state.board_cards.append(card)
+            animations.append({
+                "type": "deal_board_card",
+                "card": card,
+                "position": 3,
+                "delay": 500
+            })
+            
+            logger.info(f"Dealt turn: {card}")
+            
+        elif self.state.phase == GamePhase.RIVER:
+            # Deal river (1 card)
+            if len(self.state.board_cards) != 4:
+                logger.error(f"ERROR: Board has {len(self.state.board_cards)} cards, expected 4")
+                return {"success": False, "error": "Invalid board state"}
+            
+            # Burn card
+            burn = self.state.deck.pop()
+            animations.append({"type": "burn_card", "delay": 0})
+            
+            # Deal river card
+            card = self.state.deck.pop()
+            self.state.board_cards.append(card)
+            animations.append({
+                "type": "deal_board_card",
+                "card": card,
+                "position": 4,
+                "delay": 500
+            })
+            
+            logger.info(f"Dealt river: {card}")
+            
+        else:
+            logger.error(f"Cannot deal cards in phase: {self.state.phase.name}")
+            return {"success": False, "error": f"Cannot deal cards in {self.state.phase.name} phase"}
+        
+        # Mark cards as dealt for this phase
+        self.state.cards_dealt_for_phase[self.state.phase] = True
+        self.state.awaiting_card_deal = False
+        
+        # If all players are all-in and we just dealt cards, check if we should continue
+        if self.state.all_players_all_in:
+            # Check if we need to advance to next phase
+            if self.state.phase == GamePhase.FLOP:
+                animations.append({
+                    "type": "request_next_cards",
+                    "phase": "TURN",
+                    "delay": 2000
+                })
+            elif self.state.phase == GamePhase.TURN:
+                animations.append({
+                    "type": "request_next_cards", 
+                    "phase": "RIVER",
+                    "delay": 2000
+                })
+            elif self.state.phase == GamePhase.RIVER:
+                # Time for showdown
+                animations.append({
+                    "type": "proceed_to_showdown",
+                    "delay": 2000
+                })
+        
+        return {
+            "success": True,
+            "animations": animations,
+            "state": self._serialize_state()
+        }
+    
+    def advance_all_in_phase(self) -> Dict[str, Any]:
+        """Advance to next phase when all players are all-in"""
+        logger.info(f"Advancing all-in phase from {self.state.phase.name}")
+        
+        if not self.state.all_players_all_in:
+            return {"success": False, "error": "Not in all-in situation"}
+        
+        # Advance phase
+        result = self._advance_phase()
+        
+        # Add request for next cards if needed
+        if self.state.awaiting_card_deal:
+            result["animations"].append({
+                "type": "request_cards",
+                "phase": self.state.phase.name,
+                "delay": 1000
+            })
+        
+        return {
+            "success": True,
+            "animations": result["animations"],
+            "state": self._serialize_state()
+        }
     
     def _resolve_showdown(self) -> Dict[str, Any]:
         """Resolve showdown and determine winners"""
@@ -1392,6 +1512,8 @@ class PokerGame:
             "game_id": self.state.game_id,
             "phase": self.state.phase.name,
             "hand_number": self.state.hand_number,
+            "awaiting_card_deal": self.state.awaiting_card_deal,
+            "all_players_all_in": self.state.all_players_all_in,
             "players": [
                 {
                     "id": p.id,

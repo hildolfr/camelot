@@ -8,6 +8,11 @@
   - Accessible via 📜 Hand History button during gameplay
   - Shows most recent hands first with winner information
   - API endpoint `/api/game/{game_id}/hand-history`
+- Turn-based card dealing system for more realistic gameplay
+  - Cards are now only generated when explicitly requested by frontend
+  - New API endpoints: `/api/game/{game_id}/deal-next-cards` and `/api/game/{game_id}/advance-all-in-phase`
+  - Frontend controls the pace of card reveals, preventing "seeing the future" issues
+  - All-in situations now show cards phase by phase with proper delays
 
 ### Changed
 - Removed redundant "Victory is yours" modal before game over screen

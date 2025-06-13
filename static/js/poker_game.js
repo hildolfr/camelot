@@ -2,6 +2,7 @@
 
 // Game state
 let gameState = null;
+let gameId = null;
 let soundEnabled = true;
 let animationQueue = [];
 let isAnimating = false;
@@ -298,6 +299,7 @@ async function startNewGame(config) {
         
         if (data.success) {
             gameState = data.state;
+            gameId = data.state.game_id;
             setupTable();
             
             // Process initial animations
@@ -693,13 +695,30 @@ async function playAnimation(animation) {
                 setTimeout(() => updateUI(), 100);
             }
             break;
+            
+        case 'request_cards':
+            // Request cards from backend for the current phase
+            console.log('Requesting cards for phase:', animation.phase);
+            await requestNextPhaseCards();
+            break;
+            
+        case 'request_next_cards':
+            // Request to advance phase and get cards (for all-in situations)
+            console.log('Requesting next phase cards:', animation.phase);
+            await advanceAllInPhase();
+            break;
+            
+        case 'proceed_to_showdown':
+            // All cards dealt, proceed to showdown
+            console.log('Proceeding to showdown');
+            await advanceAllInPhase();
+            break;
     }
 }
 
 // Animate blind posting
 async function animateBlindPost(animation) {
     const player = getPlayerById(animation.player_id);
-    const playerInfo = document.getElementById(`player_${animation.player_id}`);
     const playerStack = document.querySelector(`#player_${animation.player_id} .player-stack`);
     
     // Update player stack immediately
@@ -977,7 +996,6 @@ async function animateAwardPot(animation) {
     }
     
     const potChips = document.getElementById('potChips');
-    const playerInfo = document.getElementById(`player_${animation.winner_id}`);
     const playerStack = document.querySelector(`#player_${animation.winner_id} .player-stack`);
     
     // Highlight winning cards if at showdown
@@ -2219,6 +2237,62 @@ async function showHandHistory() {
     } catch (error) {
         console.error('Error fetching hand history:', error);
         alert('Failed to load hand history');
+    }
+}
+
+// Request cards for the current phase
+async function requestNextPhaseCards() {
+    if (!gameState || !gameState.game_id) {
+        console.error('No game state available');
+        return;
+    }
+    
+    try {
+        console.log('Requesting cards for current phase');
+        const response = await fetch(`/api/game/${gameState.game_id}/deal-next-cards`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            gameState = data.state;
+            if (data.animations) {
+                queueAnimations(data.animations);
+            }
+        } else {
+            console.error('Failed to deal cards:', data.error);
+        }
+    } catch (error) {
+        console.error('Error requesting cards:', error);
+    }
+}
+
+// Advance to next phase in all-in situation
+async function advanceAllInPhase() {
+    if (!gameState || !gameState.game_id) {
+        console.error('No game state available');
+        return;
+    }
+    
+    try {
+        console.log('Advancing all-in phase');
+        const response = await fetch(`/api/game/${gameState.game_id}/advance-all-in-phase`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            gameState = data.state;
+            if (data.animations) {
+                queueAnimations(data.animations);
+            }
+        } else {
+            console.error('Failed to advance phase:', data.error);
+        }
+    } catch (error) {
+        console.error('Error advancing all-in phase:', error);
     }
 }
 
