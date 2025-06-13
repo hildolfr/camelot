@@ -16,10 +16,15 @@
 
 ### Fixed
 - Fixed game over screen blocking bug report button
-  - Overlay now leaves space on the right for bug report button
-  - Reduced z-index to ensure button remains accessible
+  - Removed overlay completely, now shows only centered modal
+  - Bug report button remains fully accessible during game over
 - Fixed broken "Play Again" button link
   - Now correctly redirects to /poker instead of /game/lobby
+- Implemented visual pot representation with chip animations
+  - Chips now animate from players to central pot when betting
+  - Pot chips visually accumulate in center of table
+  - Winner receives chips from pot with smooth animation
+  - Fixes timing issue where AI appeared to take money before winning
 - Fixed critical double-payment bug when players fold to all-in
   - Winner was receiving uncalled bet refund AND winning a pot with their full bet
   - Now clears all player bets after handling uncalled returns to prevent double-counting

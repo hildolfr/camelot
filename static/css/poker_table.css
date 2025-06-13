@@ -586,6 +586,43 @@ body[data-player-count="2"] .player-seat[data-position="1"] .player-cards {
 }
 
 
+/* Pot Chips Area */
+.pot-chips-area {
+    position: absolute;
+    top: 55%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.pot-chips {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    min-height: 60px;
+    min-width: 200px;
+}
+
+.pot-label {
+    background: rgba(0, 0, 0, 0.8);
+    border: 2px solid #FFD700;
+    border-radius: 20px;
+    padding: 8px 20px;
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.4);
+}
+
+.pot-amount-display {
+    color: #FFD700;
+    font-size: 1.4rem;
+    font-weight: bold;
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0.6);
+}
+
 /* Chips */
 .chip-stack {
     position: absolute;

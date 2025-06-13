@@ -483,6 +483,18 @@ function clearTableForNewHand() {
         chips.innerHTML = '';
     });
     
+    // Clear pot chips
+    const potChips = document.getElementById('potChips');
+    if (potChips) {
+        potChips.innerHTML = '';
+    }
+    
+    // Hide pot label
+    const potLabel = document.getElementById('potLabel');
+    if (potLabel) {
+        potLabel.style.display = 'none';
+    }
+    
     // Clear all bet displays for new hand
     clearAllBetDisplays();
     
@@ -687,20 +699,52 @@ async function playAnimation(animation) {
 // Animate blind posting
 async function animateBlindPost(animation) {
     const player = getPlayerById(animation.player_id);
-    const chips = document.getElementById(`chips_${animation.player_id}`);
+    const playerInfo = document.getElementById(`player_${animation.player_id}`);
+    const playerStack = document.querySelector(`#player_${animation.player_id} .player-stack`);
     
-    // Create chip element
-    const chip = createChip(animation.amount);
-    chips.appendChild(chip);
-    
-    // Update player stack
+    // Update player stack immediately
     updatePlayerStack(animation.player_id, player.stack);
+    
+    // Animate chip to pot
+    const playerRect = playerStack.getBoundingClientRect();
+    const potArea = document.getElementById('potChips');
+    const potRect = potArea.getBoundingClientRect();
+    
+    // Create animated chip
+    const animatedChip = createChip(animation.amount);
+    animatedChip.style.cssText = `
+        position: fixed;
+        left: ${playerRect.left + playerRect.width/2}px;
+        top: ${playerRect.top}px;
+        transform: translate(-50%, 0);
+        z-index: 1000;
+        transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    `;
+    document.body.appendChild(animatedChip);
+    
+    // Animate to pot
+    setTimeout(() => {
+        animatedChip.style.left = potRect.left + potRect.width/2 + 'px';
+        animatedChip.style.top = potRect.top + potRect.height/2 + 'px';
+        animatedChip.style.transform = 'translate(-50%, -50%) scale(0.8)';
+    }, 50);
+    
+    // Add chip to pot
+    setTimeout(() => {
+        const potChip = createChip(animation.amount);
+        potChip.style.position = 'relative';
+        const existingChips = potArea.children.length;
+        potChip.style.marginLeft = existingChips > 0 ? '-35px' : '0';
+        potArea.appendChild(potChip);
+        animatedChip.remove();
+        updatePotDisplay();
+    }, 650);
     
     // Show action
     showPlayerAction(animation.player_id, `${animation.blind_type.toUpperCase()} BLIND`);
     
     playSound('chipClick');
-    await sleep(300);
+    await sleep(700);
 }
 
 // Animate dealing card
@@ -797,34 +841,60 @@ async function animateBoardCard(animation) {
 // Animate bet/raise/call
 async function animateBet(animation) {
     const player = getPlayerById(animation.player_id);
-    const chips = document.getElementById(`chips_${animation.player_id}`);
     const playerInfo = document.getElementById(`player_${animation.player_id}`);
+    const playerStack = document.querySelector(`#player_${animation.player_id} .player-stack`);
     
     // Add visual feedback to player box
     playerInfo.classList.add('betting');
     
-    // Create chip stack with animation
-    const chipCount = Math.min(5, Math.ceil(animation.amount / 20));
+    // Update player stack immediately to show deduction
+    updatePlayerStack(animation.player_id, player.stack);
+    
+    // Animate chips moving from player to pot
+    const playerRect = playerStack.getBoundingClientRect();
+    const potArea = document.getElementById('potChips');
+    const potRect = potArea.getBoundingClientRect();
+    
+    // Create animated chips that move to pot
+    const chipCount = Math.min(5, Math.ceil(animation.amount / 50));
+    const chipValue = animation.amount / chipCount;
+    
     for (let i = 0; i < chipCount; i++) {
         setTimeout(() => {
-            const chip = createChip(animation.amount / chipCount);
-            chip.style.opacity = '0';
-            chip.style.transform = 'translateY(-20px)';
-            chips.appendChild(chip);
+            // Create chip at player's position
+            const animatedChip = createChip(chipValue);
+            animatedChip.style.cssText = `
+                position: fixed;
+                left: ${playerRect.left + playerRect.width/2}px;
+                top: ${playerRect.top}px;
+                transform: translate(-50%, 0);
+                z-index: 1000;
+                transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            `;
+            document.body.appendChild(animatedChip);
             
-            // Animate chip appearance
+            // Animate to pot
             setTimeout(() => {
-                chip.style.transition = 'all 0.3s ease';
-                chip.style.opacity = '1';
-                chip.style.transform = 'translateY(0)';
-            }, 10);
+                animatedChip.style.left = potRect.left + potRect.width/2 + 'px';
+                animatedChip.style.top = potRect.top + potRect.height/2 + 'px';
+                animatedChip.style.transform = 'translate(-50%, -50%) scale(0.8)';
+            }, 50);
+            
+            // Add chip to pot and remove animated one
+            setTimeout(() => {
+                const potChip = createChip(chipValue);
+                potChip.style.position = 'relative';
+                potChip.style.marginLeft = i > 0 ? '-35px' : '0';
+                potArea.appendChild(potChip);
+                animatedChip.remove();
+                
+                // Update pot display
+                updatePotDisplay();
+            }, 650);
             
             playSound('chipClick');
         }, i * 100);
     }
-    
-    // Update player stack with animation
-    updatePlayerStack(animation.player_id, player.stack);
     
     // Update bet displays immediately
     updatePlayerBetDisplays();
@@ -854,7 +924,7 @@ async function animateBet(animation) {
         playerInfo.classList.remove('betting');
     }, 1000);
     
-    await sleep(500 + (chipCount * 100));
+    await sleep(700 + (chipCount * 100));
 }
 
 // Animate fold
@@ -906,7 +976,7 @@ async function animateAwardPot(animation) {
         return;
     }
     
-    const potAmount = document.getElementById('potAmount');
+    const potChips = document.getElementById('potChips');
     const playerInfo = document.getElementById(`player_${animation.winner_id}`);
     const playerStack = document.querySelector(`#player_${animation.winner_id} .player-stack`);
     
@@ -915,38 +985,74 @@ async function animateAwardPot(animation) {
         highlightWinningCards(animation.winner_id);
     }
     
-    // Animate pot moving to winner
-    const potRect = potAmount.getBoundingClientRect();
+    // Show the stack before winning if provided
+    if (animation.stack_before_win !== undefined) {
+        updatePlayerStack(animation.winner_id, animation.stack_before_win);
+    }
+    
+    // Animate pot chips moving to winner
+    const potRect = potChips.getBoundingClientRect();
     const playerRect = playerStack.getBoundingClientRect();
     
-    // Create animated pot amount
+    // Get all chips in pot
+    const chips = potChips.querySelectorAll('.poker-chip');
+    
+    // Animate each chip to the winner
+    chips.forEach((chip, index) => {
+        setTimeout(() => {
+            const animatedChip = chip.cloneNode(true);
+            animatedChip.style.cssText = `
+                position: fixed;
+                left: ${potRect.left + potRect.width/2}px;
+                top: ${potRect.top + potRect.height/2}px;
+                transform: translate(-50%, -50%);
+                z-index: 1000;
+                transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            `;
+            document.body.appendChild(animatedChip);
+            
+            // Fade out original chip
+            chip.style.opacity = '0';
+            
+            // Animate to player
+            setTimeout(() => {
+                animatedChip.style.left = playerRect.left + playerRect.width/2 + 'px';
+                animatedChip.style.top = playerRect.top + 'px';
+                animatedChip.style.transform = 'translate(-50%, 0) scale(0.5)';
+                animatedChip.style.opacity = '0';
+            }, 50);
+            
+            // Remove animated chip
+            setTimeout(() => {
+                animatedChip.remove();
+            }, 650);
+        }, index * 50);
+    });
+    
+    // Create animated pot amount text
     const animatedPot = document.createElement('div');
     animatedPot.className = 'animated-pot';
     animatedPot.textContent = `+$${animation.amount}`;
     animatedPot.style.cssText = `
         position: fixed;
-        left: ${potRect.left}px;
-        top: ${potRect.top}px;
+        left: ${potRect.left + potRect.width/2}px;
+        top: ${potRect.top + potRect.height/2}px;
+        transform: translate(-50%, -50%);
         color: #FFD700;
         font-size: 1.5rem;
         font-weight: bold;
-        z-index: 1000;
+        z-index: 1001;
         text-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
     `;
     document.body.appendChild(animatedPot);
     
-    // Animate to player
+    // Animate amount to player
     setTimeout(() => {
         animatedPot.style.transition = 'all 0.8s cubic-bezier(0.4, 0, 0.2, 1)';
-        animatedPot.style.left = playerRect.left + 'px';
+        animatedPot.style.left = playerRect.left + playerRect.width/2 + 'px';
         animatedPot.style.top = playerRect.top + 'px';
-        animatedPot.style.transform = 'scale(1.2)';
-    }, 50);
-    
-    // Show the stack before winning if provided
-    if (animation.stack_before_win !== undefined) {
-        updatePlayerStack(animation.winner_id, animation.stack_before_win);
-    }
+        animatedPot.style.transform = 'translate(-50%, 0) scale(1.2)';
+    }, 100);
     
     // Update winner's stack with animation after pot reaches them
     setTimeout(() => {
@@ -955,10 +1061,19 @@ async function animateAwardPot(animation) {
         setTimeout(() => playerStack.classList.remove('stack-increase'), 600);
     }, 800);
     
-    // Remove animated pot
+    // Remove animated pot text
     setTimeout(() => {
         animatedPot.remove();
     }, 900);
+    
+    // Clear pot chips
+    setTimeout(() => {
+        potChips.innerHTML = '';
+        const potLabel = document.getElementById('potLabel');
+        if (potLabel) {
+            potLabel.style.display = 'none';
+        }
+    }, chips.length * 50 + 100);
     
     // Show win message with hand name if available
     let message;
@@ -973,16 +1088,8 @@ async function animateAwardPot(animation) {
     }
     showPlayerAction(animation.winner_id, message);
     
-    // Clear all chip stacks with fade animation
-    document.querySelectorAll('.chip-stack').forEach(chips => {
-        chips.querySelectorAll('.poker-chip').forEach(chip => {
-            chip.style.transition = 'opacity 0.5s ease';
-            chip.style.opacity = '0';
-        });
-        setTimeout(() => chips.innerHTML = '', 500);
-    });
-    
     // Reset pot display
+    const potAmount = document.getElementById('potAmount');
     potAmount.textContent = '$0';
     
     playSound('win');
@@ -1128,6 +1235,32 @@ function createChip(amount) {
     }
     
     return chip;
+}
+
+// Update pot display
+function updatePotDisplay() {
+    const potLabel = document.getElementById('potLabel');
+    const potAmountDisplay = document.getElementById('potAmountDisplay');
+    const potAmount = document.getElementById('potAmount');
+    
+    if (gameState) {
+        // Calculate current pot from all player contributions
+        let currentPot = 0;
+        gameState.players.forEach(player => {
+            currentPot += player.total_bet_this_hand || 0;
+        });
+        
+        // Update displays
+        if (currentPot > 0) {
+            potLabel.style.display = 'block';
+            potAmountDisplay.textContent = `$${currentPot}`;
+            potAmount.textContent = `$${currentPot}`;
+        } else {
+            potLabel.style.display = 'none';
+            potAmountDisplay.textContent = '$0';
+            potAmount.textContent = '$0';
+        }
+    }
 }
 
 // Update pot chips display
@@ -1866,105 +1999,118 @@ function showGameOverScreen(winnerId, message) {
     
     // Wait a bit to ensure all animations have completed
     setTimeout(() => {
-        // Create game over overlay that doesn't cover the bug report button
-        const overlay = document.createElement('div');
-        overlay.style.cssText = `
+        // Create just the modal content without overlay
+        const modal = document.createElement('div');
+        modal.className = 'game-over-modal';
+        modal.style.cssText = `
             position: fixed;
-            top: 0;
-            left: 0;
-            right: 120px;  /* Leave space for bug report button */
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.9);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 8000;  /* Below bug report button */
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            border: 3px solid #FFD700;
+            border-radius: 20px;
+            padding: 3rem;
+            text-align: center;
+            box-shadow: 0 0 50px rgba(255, 215, 0, 0.5);
+            z-index: 1000;
             opacity: 0;
-            transition: opacity 1s ease-in;
+            transition: all 0.5s ease;
+            min-width: 400px;
         `;
     
-    // Trigger fade-in after adding to DOM
-    setTimeout(() => {
-        overlay.style.opacity = '1';
-    }, 50);
+        const title = document.createElement('h1');
+        title.textContent = 'GAME OVER!';
+        title.style.cssText = `
+            color: #FFD700;
+            font-size: 3rem;
+            margin: 0 0 1rem 0;
+            text-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
+        `;
     
-    const content = document.createElement('div');
-    content.style.cssText = `
-        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-        border: 3px solid #FFD700;
-        border-radius: 20px;
-        padding: 3rem;
-        text-align: center;
-        box-shadow: 0 0 50px rgba(255, 215, 0, 0.5);
-        position: relative;
-    `;
+        const messageEl = document.createElement('h2');
+        messageEl.textContent = message;
+        messageEl.style.cssText = `
+            color: #fff;
+            font-size: 2rem;
+            margin: 0 0 2rem 0;
+        `;
     
-    const title = document.createElement('h1');
-    title.textContent = 'GAME OVER!';
-    title.style.cssText = `
-        color: #FFD700;
-        font-size: 3rem;
-        margin-bottom: 1rem;
-        text-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
-    `;
+        const buttonContainer = document.createElement('div');
+        buttonContainer.style.cssText = `
+            display: flex;
+            gap: 2rem;
+            justify-content: center;
+            margin-top: 2rem;
+        `;
     
-    const messageEl = document.createElement('h2');
-    messageEl.textContent = message;
-    messageEl.style.cssText = `
-        color: #fff;
-        font-size: 2rem;
-        margin-bottom: 2rem;
-    `;
+        const playAgainBtn = document.createElement('button');
+        playAgainBtn.textContent = 'Play Again';
+        playAgainBtn.style.cssText = `
+            background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+            color: #000;
+            border: none;
+            padding: 1rem 2rem;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        `;
+        playAgainBtn.onmouseover = () => {
+            playAgainBtn.style.transform = 'translateY(-2px)';
+            playAgainBtn.style.boxShadow = '0 6px 8px rgba(0, 0, 0, 0.4)';
+        };
+        playAgainBtn.onmouseout = () => {
+            playAgainBtn.style.transform = 'translateY(0)';
+            playAgainBtn.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.3)';
+        };
+        playAgainBtn.onclick = () => {
+            window.location.href = '/poker';
+        };
     
-    const buttonContainer = document.createElement('div');
-    buttonContainer.style.cssText = `
-        display: flex;
-        gap: 2rem;
-        margin-top: 2rem;
-    `;
+        const mainMenuBtn = document.createElement('button');
+        mainMenuBtn.textContent = 'Main Menu';
+        mainMenuBtn.style.cssText = `
+            background: linear-gradient(135deg, #DC143C 0%, #8B0000 100%);
+            color: #fff;
+            border: none;
+            padding: 1rem 2rem;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        `;
+        mainMenuBtn.onmouseover = () => {
+            mainMenuBtn.style.transform = 'translateY(-2px)';
+            mainMenuBtn.style.boxShadow = '0 6px 8px rgba(0, 0, 0, 0.4)';
+        };
+        mainMenuBtn.onmouseout = () => {
+            mainMenuBtn.style.transform = 'translateY(0)';
+            mainMenuBtn.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.3)';
+        };
+        mainMenuBtn.onclick = () => {
+            window.location.href = '/';
+        };
     
-    const playAgainBtn = document.createElement('button');
-    playAgainBtn.textContent = 'Play Again';
-    playAgainBtn.style.cssText = `
-        background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
-        color: #000;
-        border: none;
-        padding: 1rem 2rem;
-        font-size: 1.2rem;
-        font-weight: bold;
-        border-radius: 10px;
-        cursor: pointer;
-        transition: all 0.3s ease;
-    `;
-    playAgainBtn.onclick = () => {
-        window.location.href = '/poker';  // Correct path to poker lobby
-    };
-    
-    const mainMenuBtn = document.createElement('button');
-    mainMenuBtn.textContent = 'Main Menu';
-    mainMenuBtn.style.cssText = `
-        background: linear-gradient(135deg, #DC143C 0%, #8B0000 100%);
-        color: #fff;
-        border: none;
-        padding: 1rem 2rem;
-        font-size: 1.2rem;
-        font-weight: bold;
-        border-radius: 10px;
-        cursor: pointer;
-        transition: all 0.3s ease;
-    `;
-    mainMenuBtn.onclick = () => {
-        window.location.href = '/';
-    };
-    
-    content.appendChild(title);
-    content.appendChild(messageEl);
-    buttonContainer.appendChild(playAgainBtn);
-    buttonContainer.appendChild(mainMenuBtn);
-    content.appendChild(buttonContainer);
-    overlay.appendChild(content);
-    document.body.appendChild(overlay);
+        modal.appendChild(title);
+        modal.appendChild(messageEl);
+        buttonContainer.appendChild(playAgainBtn);
+        buttonContainer.appendChild(mainMenuBtn);
+        modal.appendChild(buttonContainer);
+        document.body.appendChild(modal);
+        
+        // Fade in the modal
+        setTimeout(() => {
+            modal.style.opacity = '1';
+            modal.style.transform = 'translate(-50%, -50%) scale(1.05)';
+            setTimeout(() => {
+                modal.style.transform = 'translate(-50%, -50%) scale(1)';
+            }, 200);
+        }, 50);
     
         // Create celebration if player won
         if (winnerId === 'hero') {
