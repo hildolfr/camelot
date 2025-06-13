@@ -91,14 +91,14 @@ class Player:
     has_folded: bool = False
     hole_cards: List[str] = field(default_factory=list)
     current_bet: int = 0
-    total_bet_this_round: int = 0
+    total_bet_this_hand: int = 0  # Total amount bet in this entire hand
     last_action: Optional[PlayerAction] = None
     
     def reset_for_new_hand(self):
         """Reset player state for new hand"""
         self.hole_cards = []
         self.current_bet = 0
-        self.total_bet_this_round = 0
+        self.total_bet_this_hand = 0
         self.has_folded = False
         self.last_action = None
         self.is_active = self.stack > 0
@@ -139,7 +139,7 @@ class GameState:
         return [p for p in self.players if not p.has_folded and p.stack > 0]
     
     def get_players_in_hand(self) -> List[Player]:
-        """Get all players still in the hand"""
+        """Get all players still in the hand (not folded)"""
         return [p for p in self.players if not p.has_folded]
     
     def get_next_active_position(self, position: int) -> int:
@@ -507,8 +507,9 @@ class PokerGame:
             
         elif action == PlayerAction.ALL_IN:
             all_in_amount = player.stack
-            logger.info(f"{player.name} going ALL-IN with ${all_in_amount}")
+            logger.info(f"\n*** {player.name} going ALL-IN with ${all_in_amount} ***")
             logger.info(f"Before all-in: current_bet={self.state.current_bet}, player_bet={player.current_bet}")
+            logger.info(f"Players in hand BEFORE all-in: {len(self.get_players_in_hand())}")
             
             self._place_bet(player, all_in_amount)
             
@@ -520,6 +521,10 @@ class PokerGame:
             
             player.last_action = action
             
+            # Log state after all-in
+            logger.info(f"After all-in: player stack=${player.stack}, player bet=${player.current_bet}")
+            logger.info(f"Players who can still act: {[p.name for p in self.state.players if not p.has_folded and p.stack > 0]}")
+            
             animations.append({
                 "type": "bet",
                 "player_id": player_id,
@@ -530,14 +535,21 @@ class PokerGame:
         
         # Check if only one player remains (others folded)
         players_in_hand = self.get_players_in_hand()
+        logger.info(f"Players still in hand after {player.name}'s {action.value}: {len(players_in_hand)}")
+        
         if len(players_in_hand) == 1:
-            # Only one player left, they win
-            logger.info("Only one player remains, awarding pot")
+            # Everyone else folded - immediate win
+            logger.info("All opponents folded - awarding pot to remaining player")
+            logger.info(f"Current board: {self.state.board_cards} (phase: {self.state.phase.name})")
             # Calculate final pots before showdown
             self._calculate_pots()
             self.state.phase = GamePhase.SHOWDOWN
             showdown_result = self._resolve_showdown()
             animations.extend(showdown_result["animations"])
+        elif len(players_in_hand) == 0:
+            # This should never happen
+            logger.error("ERROR: No players in hand! This should never happen!")
+            return {"success": False, "error": "No players remaining in hand"}
         else:
             # Check if betting round is complete
             logger.info(f"\n*** CHECKING IF BETTING ROUND COMPLETE AFTER {player.name}'s {action.value} ***")
@@ -614,10 +626,8 @@ class PokerGame:
         }
         next_phase_name = phase_names.get(self.state.phase, "")
         
-        # Calculate pots before resetting bets
-        self._calculate_pots()
-        
-        # Reset betting for new round
+        # DON'T calculate pots here - only at showdown!
+        # Just reset betting for new round
         logger.info("\nRESETTING BETS FOR NEW BETTING ROUND:")
         for player in self.state.players:
             old_bet = player.current_bet
@@ -653,6 +663,7 @@ class PokerGame:
             })
             
             # Deal 3 flop cards with stagger
+            base_delay = len(animations) * 500 if animations else 1000  # Accumulate delays
             for i in range(3):
                 card = self.state.deck.pop()
                 self.state.board_cards.append(card)
@@ -660,7 +671,7 @@ class PokerGame:
                     "type": "deal_board_card",
                     "card": card,
                     "position": i,
-                    "delay": 1000 + (i * 300)  # Increased delay for better visibility
+                    "delay": base_delay + (i * 400)  # Increased delay for better visibility
                 })
             logger.info(f"Dealt flop: {self.state.board_cards}")
             
@@ -677,9 +688,10 @@ class PokerGame:
             self.state.board_cards.append(card)
             logger.info(f"Dealt turn: {card}. Total board: {self.state.board_cards}")
             
+            base_delay = len(animations) * 300 if animations else 1000  # Accumulate delays
             animations.extend([
-                {"type": "burn_card", "delay": 0},
-                {"type": "deal_board_card", "card": card, "position": 3, "delay": 1000}  # Increased delay
+                {"type": "burn_card", "delay": base_delay},
+                {"type": "deal_board_card", "card": card, "position": 3, "delay": base_delay + 500}  # Increased delay
             ])
             
         elif self.state.phase == GamePhase.TURN:
@@ -695,14 +707,26 @@ class PokerGame:
             self.state.board_cards.append(card)
             logger.info(f"Dealt river: {card}. Total board: {self.state.board_cards}")
             
+            base_delay = len(animations) * 300 if animations else 1000  # Accumulate delays
             animations.extend([
-                {"type": "burn_card", "delay": 0},
-                {"type": "deal_board_card", "card": card, "position": 4, "delay": 1000}  # Increased delay
+                {"type": "burn_card", "delay": base_delay},
+                {"type": "deal_board_card", "card": card, "position": 4, "delay": base_delay + 500}  # Increased delay
             ])
             
         elif self.state.phase == GamePhase.RIVER:
-            # Showdown
+            # Before going to showdown, ensure we have all 5 community cards
+            if len(self.state.board_cards) != 5:
+                logger.error(f"ERROR: Trying to go to showdown with only {len(self.state.board_cards)} board cards!")
+                logger.error(f"Board: {self.state.board_cards}")
+                logger.error("PREVENTING SHOWDOWN - This is a critical error!")
+                # Don't go to showdown with incomplete board
+                return {"animations": animations}
+            
+            # Showdown - only if we have all cards
+            logger.info("Moving to SHOWDOWN phase with complete board")
             self.state.phase = GamePhase.SHOWDOWN
+            # Calculate final pots before showdown
+            self._calculate_pots()
             showdown_result = self._resolve_showdown()
             animations.extend(showdown_result["animations"])
             
@@ -732,16 +756,31 @@ class PokerGame:
             # If all remaining players are all-in (including when one will bust the other)
             if len(active_players) == 0 and len(players_in_hand) > 1:
                 logger.info("All players are all-in - automatically advancing to next phase")
-                # Add a small delay animation before advancing
+                # Add a visual notification and longer delay before dealing remaining cards
                 animations.append({
                     "type": "delay",
-                    "delay": 1500,
-                    "message": "All players all-in - dealing remaining cards"
+                    "delay": 3000,  # Increased delay
+                    "message": "All players all-in! Dealing remaining cards..."
                 })
                 
-                # Recursively advance through remaining phases
-                next_phase_result = self._advance_phase()
-                animations.extend(next_phase_result["animations"])
+                # Continue dealing all remaining cards to showdown
+                # Keep track of cumulative delay for proper animation timing
+                phase_count = 0
+                while self.state.phase not in [GamePhase.SHOWDOWN, GamePhase.GAME_OVER]:
+                    phase_count += 1
+                    logger.info(f"All-in: Advancing to phase {phase_count}")
+                    next_phase_result = self._advance_phase()
+                    
+                    # Add extra delay between phases for visibility
+                    if next_phase_result["animations"]:
+                        animations.append({
+                            "type": "delay",
+                            "delay": 1000,
+                            "message": ""
+                        })
+                    
+                    animations.extend(next_phase_result["animations"])
+                
                 return {"animations": animations}
         
         # Double-check all players have last_action reset
@@ -756,6 +795,13 @@ class PokerGame:
             "delay": 0
         })
         
+        # Update pot display but don't calculate pots yet
+        # Just track total contributions for display purposes
+        pot_total = sum(pot.amount for pot in self.state.pots)
+        for player in self.state.players:
+            pot_total += player.total_bet_this_hand
+        logger.info(f"Current pot total for display: ${pot_total}")
+        
         # Log phase transition for debugging
         logger.info(f"Phase transition complete: {self.state.phase.name} with {len(self.state.board_cards)} board cards")
         logger.info(f"Board cards: {self.state.board_cards}")
@@ -768,6 +814,16 @@ class PokerGame:
     
     def _resolve_showdown(self) -> Dict[str, Any]:
         """Resolve showdown and determine winners"""
+        logger.info(f"\n{'='*60}\nRESOLVING SHOWDOWN\n{'='*60}")
+        logger.info(f"Phase when showdown called: {self.state.phase.name}")
+        logger.info(f"Board cards: {self.state.board_cards} (count: {len(self.state.board_cards)})")
+        
+        # CRITICAL CHECK: Ensure we're actually ready for showdown
+        if self.state.phase != GamePhase.SHOWDOWN and self.state.phase != GamePhase.GAME_OVER:
+            logger.error(f"ERROR: _resolve_showdown called during {self.state.phase.name} phase!")
+            logger.error("This should never happen!")
+            return {"animations": []}
+        
         animations = []
         active_players = self.get_players_in_hand()
         
@@ -802,6 +858,15 @@ class PokerGame:
                         "cards": player.hole_cards,
                         "delay": i * 500
                     })
+            
+            # CRITICAL: Only evaluate hands if we have a complete board (5 cards)
+            # This prevents premature hand evaluation during all-in situations
+            if len(self.state.board_cards) < 5:
+                logger.error(f"ERROR: Attempting to evaluate hands with incomplete board! Only {len(self.state.board_cards)} cards dealt!")
+                logger.error(f"Board: {self.state.board_cards}")
+                logger.error("This should never happen - showdown should only occur after river!")
+                # Don't evaluate - return empty animations
+                return {"animations": []}
             
             # Evaluate hands and determine winners for each pot
             delay = len(active_players) * 500 + 1000
@@ -862,8 +927,10 @@ class PokerGame:
                         "delay": delay
                     })
         
-        self.state.phase = GamePhase.GAME_OVER
-        logger.info("Hand complete - phase set to GAME_OVER")
+        # DON'T set phase to GAME_OVER yet - let animations play first
+        # self.state.phase = GamePhase.GAME_OVER  # REMOVED - causes premature game over screen
+        logger.info(f"\n{'='*60}\nHAND COMPLETE - STAYING IN SHOWDOWN PHASE\n{'='*60}")
+        logger.info(f"Final board: {self.state.board_cards}")
         
         # Log final player stacks
         busted_players = []
@@ -875,11 +942,21 @@ class PokerGame:
         # If someone got busted, add extra delay so players can see why
         if busted_players:
             logger.info(f"Player(s) busted: {[p.name for p in busted_players]}")
+            # Add a longer delay with a clear message about who won and why
+            busted_names = ", ".join([p.name for p in busted_players])
+            # Calculate total animation time to ensure board is visible
+            total_animation_time = sum(a.get('delay', 0) for a in animations)
             animations.append({
                 "type": "delay",
-                "delay": 3000,
-                "message": "Player busted! Showing final board..."
+                "delay": max(6000, total_animation_time + 3000),  # Ensure enough time to see board
+                "message": f"{busted_names} eliminated! Final board shown above."
             })
+        
+        # Add a final animation to signal hand is complete
+        animations.append({
+            "type": "hand_complete",
+            "delay": 500
+        })
         
         return {"animations": animations}
     
@@ -892,9 +969,9 @@ class PokerGame:
         
         player.stack -= actual_bet
         player.current_bet += actual_bet
-        player.total_bet_this_round += actual_bet
+        player.total_bet_this_hand += actual_bet
         
-        logger.info(f"After: stack=${player.stack}, current_bet=${player.current_bet}")
+        logger.info(f"After: stack=${player.stack}, current_bet=${player.current_bet}, total_bet_this_hand=${player.total_bet_this_hand}")
         
         # Don't add to pot here - we'll calculate pots when betting round ends
         # This allows proper side pot calculation
@@ -980,24 +1057,29 @@ class PokerGame:
         return players_who_need_to_act == 0
     
     def _calculate_pots(self):
-        """Calculate main pot and side pots based on current bets"""
+        """Calculate main pot and side pots based on current bets
+        
+        This should only be called ONCE at the end of all betting, just before showdown.
+        It should NOT be called after each betting round.
+        """
         logger.info("\nCALCULATING POTS:")
         
         # Get all unique bet amounts from players who haven't folded
         bet_amounts = []
         for p in self.state.players:
-            if p.current_bet > 0 and not p.has_folded:
-                if p.current_bet not in bet_amounts:
-                    bet_amounts.append(p.current_bet)
-                logger.info(f"  {p.name}: bet ${p.current_bet}, folded={p.has_folded}")
+            # Use total_bet_this_hand to get total contributions for the entire hand
+            if p.total_bet_this_hand > 0:
+                if p.total_bet_this_hand not in bet_amounts:
+                    bet_amounts.append(p.total_bet_this_hand)
+                logger.info(f"  {p.name}: total bet this hand ${p.total_bet_this_hand}, folded={p.has_folded}")
         
         if not bet_amounts:
             # If no bets from non-folded players (everyone folded), handle uncalled bets
             remaining_players = [p for p in self.state.players if not p.has_folded]
-            if len(remaining_players) == 1 and sum(p.current_bet for p in self.state.players) > 0:
+            if len(remaining_players) == 1 and sum(p.total_bet_this_hand for p in self.state.players) > 0:
                 # Find the highest bet among folded players (this is what was "called")
                 winner = remaining_players[0]
-                folded_bets = [p.current_bet for p in self.state.players if p.has_folded and p.current_bet > 0]
+                folded_bets = [p.total_bet_this_hand for p in self.state.players if p.has_folded and p.total_bet_this_hand > 0]
                 
                 if folded_bets:
                     # The maximum anyone called is the highest bet from folded players
@@ -1006,7 +1088,7 @@ class PokerGame:
                     # Winner collects the called amount from each player (including themselves)
                     pot_size = 0
                     for p in self.state.players:
-                        contribution = min(p.current_bet, max_called)
+                        contribution = min(p.total_bet_this_hand, max_called)
                         pot_size += contribution
                     
                     # Create pot with only the called amounts
@@ -1014,19 +1096,19 @@ class PokerGame:
                     logger.info(f"Everyone folded. Pot: ${pot_size} (max called: ${max_called})")
                     
                     # Return uncalled portion to the winner
-                    uncalled = winner.current_bet - max_called
+                    uncalled = winner.total_bet_this_hand - max_called
                     if uncalled > 0:
                         winner.stack += uncalled
                         logger.info(f"Returned uncalled bet of ${uncalled} to {winner.name}")
-                        # Adjust the winner's current bet to reflect only the called portion
-                        winner.current_bet = max_called
+                        # Adjust the winner's total bet to reflect only the called portion
+                        winner.total_bet_this_hand = max_called
                 else:
                     # No one else had any bets (e.g., everyone folded pre-flop to BB)
                     # Winner just gets their own bet back
                     self.state.pots = []
-                    winner.stack += winner.current_bet
-                    logger.info(f"No callers. Returned ${winner.current_bet} to {winner.name}")
-                    winner.current_bet = 0
+                    winner.stack += winner.total_bet_this_hand
+                    logger.info(f"No callers. Returned ${winner.total_bet_this_hand} to {winner.name}")
+                    winner.total_bet_this_hand = 0
             return
         
         # Sort bet amounts ascending
@@ -1042,13 +1124,13 @@ class PokerGame:
             
             # Calculate contributions for this pot level
             for p in self.state.players:
-                if p.current_bet > previous_level:
+                if p.total_bet_this_hand > previous_level:
                     # Player contributes the difference between levels, up to their total bet
-                    contribution = min(bet_level - previous_level, p.current_bet - previous_level)
+                    contribution = min(bet_level - previous_level, p.total_bet_this_hand - previous_level)
                     pot_amount += contribution
                     
                     # Player is eligible if they haven't folded and bet at least this level
-                    if not p.has_folded and p.current_bet >= bet_level:
+                    if not p.has_folded and p.total_bet_this_hand >= bet_level:
                         eligible_players.append(p.id)
             
             if pot_amount > 0 and eligible_players:
@@ -1061,6 +1143,12 @@ class PokerGame:
         # Log total pot info
         total_pot = sum(pot.amount for pot in self.state.pots)
         logger.info(f"Total pots: {len(self.state.pots)}, Total amount: ${total_pot}")
+        
+        # Validate pot total
+        total_chips_in_play = sum(p.stack for p in self.state.players) + sum(p.total_bet_this_hand for p in self.state.players)
+        if total_pot > total_chips_in_play:
+            logger.error(f"ERROR: Pot total ${total_pot} exceeds total chips in play ${total_chips_in_play}!")
+            logger.error("This indicates a serious bug in pot calculation!")
     
     def _get_small_blind_position(self) -> int:
         """Get small blind position"""
@@ -1151,16 +1239,19 @@ class PokerGame:
     
     def _serialize_state(self) -> Dict[str, Any]:
         """Serialize game state for client"""
-        # Calculate current pot total (including active bets)
+        # Calculate current pot total (all money bet in this hand)
         current_pot_total = 0
         
-        # Add up existing pots
-        for pot in self.state.pots:
-            current_pot_total += pot.amount
-            
-        # Add current bets that haven't been added to pots yet
-        for player in self.state.players:
-            current_pot_total += player.current_bet
+        # Since we only calculate pots at showdown, during betting we need to
+        # show the total of all bets made this hand
+        if self.state.phase in [GamePhase.SHOWDOWN, GamePhase.GAME_OVER]:
+            # At showdown, pots have been calculated
+            for pot in self.state.pots:
+                current_pot_total += pot.amount
+        else:
+            # During betting, sum all player contributions
+            for player in self.state.players:
+                current_pot_total += player.total_bet_this_hand
         
         return {
             "game_id": self.state.game_id,

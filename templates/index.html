@@ -2450,11 +2450,9 @@
                             <option value="button">Button (BTN)</option>
                             <option value="sb">Small Blind (SB)</option>
                             <option value="bb">Big Blind (BB)</option>
-                            <option value="utg">Under the Gun (UTG)</option>
-                            <option value="utg+1">UTG+1</option>
-                            <option value="mp">Middle Position (MP)</option>
-                            <option value="mp+1">MP+1</option>
-                            <option value="co">Cutoff (CO)</option>
+                            <option value="late">Late Position (CO)</option>
+                            <option value="middle">Middle Position (MP)</option>
+                            <option value="early">Early Position (UTG)</option>
                         </select>
                     </div>
                     
@@ -2473,6 +2471,27 @@
                         <label style="display: block; margin-bottom: 0.5rem; font-size: 0.9rem; opacity: 0.8;">Pot Size (in big blinds)</label>
                         <input type="number" id="potSize" placeholder="0" min="0" value="0" style="width: 150px; padding: 0.6rem 1rem; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; color: white; font-size: 0.9rem;">
                         <span style="font-size: 0.8rem; opacity: 0.7; margin-left: 0.5rem;">Leave 0 for pre-flop</span>
+                    </div>
+                    
+                    <!-- Betting Action Section for poker_knightNG -->
+                    <div style="margin-top: 1rem; padding: 1rem; background: rgba(255, 215, 0, 0.05); border: 1px solid rgba(255, 215, 0, 0.2); border-radius: 8px;">
+                        <label style="display: block; margin-bottom: 0.5rem; font-size: 0.9rem; color: #FFD700;">🚀 Action Facing (enables advanced metrics)</label>
+                        <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                            <select id="actionFacing" style="flex: 1; min-width: 150px; padding: 0.6rem; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; color: white; font-size: 0.9rem;">
+                                <option value="">No action</option>
+                                <option value="check">Facing check</option>
+                                <option value="bet">Facing bet</option>
+                                <option value="raise">Facing raise</option>
+                                <option value="reraise">Facing re-raise</option>
+                            </select>
+                            <div id="betSizeContainer" style="display: none; flex: 1; min-width: 200px;">
+                                <input type="number" id="betSize" placeholder="0.5" min="0" max="5" step="0.1" value="0.5" style="width: 80px; padding: 0.6rem; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; color: white; font-size: 0.9rem;">
+                                <span style="font-size: 0.8rem; opacity: 0.7; margin-left: 0.5rem;">× pot (e.g., 0.5 = half pot)</span>
+                            </div>
+                        </div>
+                        <p style="font-size: 0.8rem; opacity: 0.7; margin-top: 0.5rem;">
+                            Enables: SPR, pot odds, MDF, board texture, nuts analysis
+                        </p>
                     </div>
                     
                     <p style="font-size: 0.8rem; opacity: 0.7; margin-top: 1rem;">
@@ -2585,28 +2604,28 @@
         </div>
         <div class="position-list">
             <div class="position-item">
-                <div class="position-name">BTN (Button)</div>
+                <div class="position-name">Button (BTN)</div>
                 <div class="position-description">Best position. Acts last post-flop. Maximum information and control.</div>
             </div>
             <div class="position-item">
-                <div class="position-name">CO (Cutoff)</div>
-                <div class="position-description">Second best position. One seat before the button. Strong stealing position.</div>
-            </div>
-            <div class="position-item">
-                <div class="position-name">MP (Middle)</div>
-                <div class="position-description">Middle positions. Moderate strength. Balance between early and late positions.</div>
-            </div>
-            <div class="position-item">
-                <div class="position-name">UTG (Under the Gun)</div>
-                <div class="position-description">First to act pre-flop. Worst position. Requires strongest hands.</div>
-            </div>
-            <div class="position-item">
-                <div class="position-name">SB (Small Blind)</div>
+                <div class="position-name">Small Blind (SB)</div>
                 <div class="position-description">Acts first post-flop. Worst position overall despite acting late pre-flop.</div>
             </div>
             <div class="position-item">
-                <div class="position-name">BB (Big Blind)</div>
+                <div class="position-name">Big Blind (BB)</div>
                 <div class="position-description">Last to act pre-flop. Gets best pot odds but poor post-flop position.</div>
+            </div>
+            <div class="position-item">
+                <div class="position-name">Late Position</div>
+                <div class="position-description">Includes Cutoff (CO) and positions near button. Strong stealing positions with good information.</div>
+            </div>
+            <div class="position-item">
+                <div class="position-name">Middle Position</div>
+                <div class="position-description">Middle positions (MP, MP+1). Moderate strength. Balance between early and late positions.</div>
+            </div>
+            <div class="position-item">
+                <div class="position-name">Early Position</div>
+                <div class="position-description">Includes Under the Gun (UTG) and UTG+1. First to act pre-flop. Requires strongest hands.</div>
             </div>
         </div>
         <p style="margin-top: 1rem; font-size: 0.85rem; opacity: 0.7; text-align: center;">

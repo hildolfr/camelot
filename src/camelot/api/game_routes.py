@@ -142,6 +142,81 @@ async def get_game_state(game_id: str) -> Dict[str, Any]:
     }
 
 
+@router.get("/{game_id}/hand-strength/{player_id}")
+async def get_hand_strength(game_id: str, player_id: str) -> Dict[str, Any]:
+    """Get current hand strength for a player."""
+    game = active_games.get(game_id)
+    if not game:
+        raise HTTPException(status_code=404, detail="Game not found")
+    
+    try:
+        # Get player
+        player = None
+        for p in game.state.players:
+            if p.id == player_id:
+                player = p
+                break
+        
+        if not player:
+            raise HTTPException(status_code=404, detail="Player not found")
+        
+        # Only calculate if player has cards
+        if not player.hole_cards or len(player.hole_cards) != 2:
+            return {
+                "success": True,
+                "has_cards": False
+            }
+        
+        # Import calculator
+        from ..core.cached_poker_calculator import get_cached_calculator
+        calculator = get_cached_calculator()
+        
+        # Count active opponents
+        active_opponents = sum(1 for p in game.state.players if p.id != player_id and not p.has_folded)
+        
+        # Calculate pot odds
+        pot_size = sum(pot.amount for pot in game.state.pots)
+        to_call = max(0, game.state.current_bet - player.current_bet)
+        pot_odds = to_call / (pot_size + to_call) if (pot_size + to_call) > 0 else 0
+        
+        # Calculate win probability
+        result = calculator.calculate(
+            hero_hand=player.hole_cards,
+            num_opponents=active_opponents,
+            board_cards=game.state.board_cards if game.state.board_cards else None,
+            simulation_mode="fast",
+            pot_size=pot_size,
+            action_to_hero="bet" if to_call > 0 else "check",
+            bet_size=to_call / pot_size if pot_size > 0 and to_call > 0 else 0
+        )
+        
+        # Get current hand evaluation if board cards exist
+        hand_name = None
+        if game.state.board_cards and len(game.state.board_cards) >= 3:
+            from ..core.hand_evaluator import evaluate_hand
+            eval_result = evaluate_hand(player.hole_cards, game.state.board_cards)
+            hand_name = eval_result.name
+        
+        return {
+            "success": True,
+            "has_cards": True,
+            "win_probability": result.get("win_probability", 0),
+            "tie_probability": result.get("tie_probability", 0),
+            "current_hand": hand_name,
+            "hand_categories": result.get("hand_category_frequencies", {}),
+            "pot_odds": pot_odds,
+            "to_call": to_call,
+            "pot_size": pot_size,
+            "equity_needed": result.get("equity_needed", pot_odds),
+            "pot_odds_percentage": round(pot_odds * 100, 1),
+            "has_direct_odds": result.get("win_probability", 0) > pot_odds if to_call > 0 else None
+        }
+        
+    except Exception as e:
+        logger.error(f"Error calculating hand strength: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.delete("/{game_id}")
 async def end_game(game_id: str) -> Dict[str, Any]:
     """End a game and clean up."""

@@ -648,6 +648,16 @@ function setupEventListeners() {
         localStorage.setItem('potSize', state.potSize);
     });
     
+    // Action facing dropdown
+    document.getElementById('actionFacing').addEventListener('change', (e) => {
+        const betSizeContainer = document.getElementById('betSizeContainer');
+        if (e.target.value && e.target.value !== 'check') {
+            betSizeContainer.style.display = 'flex';
+        } else {
+            betSizeContainer.style.display = 'none';
+        }
+    });
+    
     // Handle window resize for responsive layout
     window.addEventListener('resize', handleResize);
     handleResize(); // Initial check
@@ -765,6 +775,17 @@ async function calculateOdds() {
     
     // Add tournament mode parameters if enabled
     if (state.tournamentMode) {
+        // Add street based on board cards (only for tournament mode to avoid cache bypass)
+        if (boardCards.length === 0) {
+            requestData.street = 'preflop';
+        } else if (boardCards.length === 3) {
+            requestData.street = 'flop';
+        } else if (boardCards.length === 4) {
+            requestData.street = 'turn';
+        } else if (boardCards.length === 5) {
+            requestData.street = 'river';
+        }
+        
         if (state.heroPosition) {
             requestData.hero_position = state.heroPosition;
         }
@@ -773,6 +794,18 @@ async function calculateOdds() {
         }
         if (state.potSize > 0) {
             requestData.pot_size = state.potSize;
+        }
+        
+        // Add action facing parameters for poker_knightNG
+        const actionFacing = document.getElementById('actionFacing').value;
+        if (actionFacing) {
+            requestData.action_to_hero = actionFacing;
+            
+            // Add bet size if facing a bet/raise
+            if (actionFacing !== 'check') {
+                const betSize = parseFloat(document.getElementById('betSize').value) || 0.5;
+                requestData.bet_size = betSize;
+            }
         }
     };
     
@@ -1135,6 +1168,14 @@ function getExpertStats(data) {
     const hasMultiway = data.multi_way_statistics !== undefined && data.multi_way_statistics !== null;
     const hasDefense = data.defense_frequencies !== undefined && data.defense_frequencies !== null;
     
+    // New poker_knightNG features - now always present, check for > 0
+    const hasSPR = data.spr > 0;
+    const hasPotOdds = data.pot_odds > 0;
+    const hasMDF = data.mdf > 0;
+    const hasNuts = data.nuts_possible !== undefined && data.nuts_possible !== null && data.nuts_possible.length > 0;
+    const hasBoardTexture = data.board_texture_score > 0;
+    const hasDraws = data.draw_combinations !== undefined && data.draw_combinations !== null;
+    
     return `
         <div style="font-size: 0.9rem;">
             <h4 style="margin-bottom: 1rem;">🎯 Expert Analysis</h4>
@@ -1228,6 +1269,75 @@ function getExpertStats(data) {
                 </div>
             </div>
             ` : ''}
+            
+            <div style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 10px; margin-bottom: 1rem;">
+                <h5 style="color: #FFD700; margin-bottom: 1rem;">🚀 Advanced Decision Metrics (poker_knightNG)</h5>
+                <div style="display: grid; gap: 0.8rem;">
+                    <div style="display: grid; grid-template-columns: minmax(140px, 180px) 1fr; align-items: start; gap: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.03); border-radius: 6px; ${!hasSPR ? 'opacity: 0.5;' : ''}">
+                        <div style="font-weight: bold; color: #90CAF9;">SPR: ${data.spr ? data.spr.toFixed(2) : '0.00'}${createHelpIcon('Stack-to-Pot Ratio: Effective stack divided by pot size')}</div>
+                        <div style="line-height: 1.4;">${
+                            !hasSPR ? '🚫 No pot/stacks specified'
+                            : data.commitment_threshold > 0 && data.spr < data.commitment_threshold 
+                                ? '💥 Pot committed - call/raise with any reasonable equity'
+                                : data.spr < 4
+                                    ? '⚔️ Low SPR - commit with top pairs, draws lose value'
+                                    : data.spr < 10
+                                        ? '⚖️ Medium SPR - all options available'
+                                        : '🏰 Deep SPR - position and implied odds crucial'
+                        }</div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: minmax(140px, 180px) 1fr; align-items: start; gap: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.03); border-radius: 6px; ${!hasPotOdds && !hasMDF ? 'opacity: 0.5;' : ''}">
+                        <div style="font-weight: bold; color: #90CAF9;">Pot Odds & MDF${createHelpIcon('Current pot odds and minimum defense frequency')}</div>
+                        <div style="line-height: 1.4;">
+                            Pot Odds: <strong>${((data.pot_odds || 0) * 100).toFixed(1)}%</strong><br>
+                            MDF: <strong>${((data.mdf || 0) * 100).toFixed(1)}%</strong><br>
+                            Equity Needed: <strong>${((data.equity_needed || 0) * 100).toFixed(1)}%</strong>
+                            ${!hasPotOdds && !hasMDF ? '<br><em>🚫 No bet facing</em>' : ''}
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: minmax(140px, 180px) 1fr; align-items: start; gap: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.03); border-radius: 6px; ${!hasBoardTexture && !hasDraws ? 'opacity: 0.5;' : ''}">
+                        <div style="font-weight: bold; color: #90CAF9;">Board Analysis${createHelpIcon('Board texture and drawing possibilities')}</div>
+                        <div style="line-height: 1.4;">
+                            Texture: <strong>${
+                                !hasBoardTexture ? 'N/A' 
+                                : data.board_texture_score < 0.3 ? 'Dry' 
+                                : data.board_texture_score < 0.7 ? 'Dynamic' 
+                                : 'Wet'
+                            }</strong> ${hasBoardTexture ? `(${(data.board_texture_score * 100).toFixed(0)}%)` : ''}<br>
+                            ${hasDraws ? `Flush draws: <strong>${data.draw_combinations.flush_draws || 0}</strong><br>
+                            Straight draws: <strong>${data.draw_combinations.straight_draws || 0}</strong>` : '<em>🚫 Requires 3+ board cards</em>'}
+                        </div>
+                    </div>
+                    ${hasNuts && data.nuts_possible && data.nuts_possible.length > 0 ? `<div style="display: grid; grid-template-columns: minmax(140px, 180px) 1fr; align-items: start; gap: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.03); border-radius: 6px;">
+                        <div style="font-weight: bold; color: #90CAF9;">Nuts Analysis${createHelpIcon('Possible nut hands on this board')}</div>
+                        <div style="line-height: 1.4;">
+                            Possible nuts: <strong>${data.nuts_possible.join(', ')}</strong>
+                        </div>
+                    </div>` : ''}
+                    <div style="display: grid; grid-template-columns: minmax(140px, 180px) 1fr; align-items: start; gap: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.03); border-radius: 6px; ${data.positional_advantage_score === 0 ? 'opacity: 0.5;' : ''}">
+                        <div style="font-weight: bold; color: #90CAF9;">Position Value${createHelpIcon('Quantified advantage from your table position')}</div>
+                        <div style="line-height: 1.4;">
+                            Score: <strong>${((data.positional_advantage_score || 0) * 100).toFixed(0)}%</strong> - ${
+                                data.positional_advantage_score === 0 ? '🚫 No position specified'
+                                : data.positional_advantage_score > 0.7 ? 'Strong positional advantage'
+                                : data.positional_advantage_score > 0.5 ? 'Moderate position benefit'
+                                : 'Limited positional edge'
+                            }
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: minmax(140px, 180px) 1fr; align-items: start; gap: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.03); border-radius: 6px;">
+                        <div style="font-weight: bold; color: #90CAF9;">Vulnerability${createHelpIcon('Likelihood of being outdrawn on later streets')}</div>
+                        <div style="line-height: 1.4;">
+                            Risk: <strong>${((data.hand_vulnerability || 0) * 100).toFixed(0)}%</strong> - ${
+                                data.hand_vulnerability === 0 ? '✅ No vulnerability calculated'
+                                : data.hand_vulnerability < 0.2 ? '🛡️ Very secure hand'
+                                : data.hand_vulnerability < 0.4 ? '⚠️ Some vulnerability'
+                                : '🚨 High risk of being outdrawn'
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
             
             <div style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 10px; margin-bottom: 1rem;">
                 <h5 style="color: #FFD700; margin-bottom: 0.5rem;">Strategic Insights</h5>
@@ -1353,6 +1463,24 @@ function getMathematicianStats(data) {
                 </div>
             </div>
             ` : ''}
+            
+            <div style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 10px; margin-bottom: 1rem;">
+                <h5 style="color: #FFD700; margin-bottom: 0.5rem;">poker_knightNG Advanced Metrics</h5>
+                <div style="display: grid; gap: 0.5rem; font-family: monospace; font-size: 0.8rem;">
+                    <div>spr: <strong>${data.spr || 0}</strong> (Stack-to-Pot Ratio)${data.spr === 0 ? ' <em style="opacity: 0.6">[no pot/stacks]</em>' : ''}</div>
+                    <div>pot_odds: <strong>${data.pot_odds || 0}</strong> (${((data.pot_odds || 0) * 100).toFixed(6)}%)${data.pot_odds === 0 ? ' <em style="opacity: 0.6">[no bet facing]</em>' : ''}</div>
+                    <div>mdf: <strong>${data.mdf || 0}</strong> (${((data.mdf || 0) * 100).toFixed(6)}% - Minimum Defense Frequency)${data.mdf === 0 ? ' <em style="opacity: 0.6">[no bet facing]</em>' : ''}</div>
+                    <div>equity_needed: <strong>${data.equity_needed || 0}</strong> (${((data.equity_needed || 0) * 100).toFixed(6)}%)${data.equity_needed === 0 ? ' <em style="opacity: 0.6">[no bet facing]</em>' : ''}</div>
+                    <div>commitment_threshold: <strong>${data.commitment_threshold || 0}</strong> (SPR commitment point)</div>
+                    <div>board_texture_score: <strong>${data.board_texture_score || 0}</strong> (0=dry, 1=wet)${data.board_texture_score === 0 ? ' <em style="opacity: 0.6">[preflop/insufficient board]</em>' : ''}</div>
+                    <div>positional_advantage_score: <strong>${data.positional_advantage_score || 0}</strong>${data.positional_advantage_score === 0 ? ' <em style="opacity: 0.6">[no position specified]</em>' : ''}</div>
+                    <div>hand_vulnerability: <strong>${data.hand_vulnerability || 0}</strong> (${((data.hand_vulnerability || 0) * 100).toFixed(6)}%)</div>
+                    ${data.range_coordination_score !== undefined ? `<div>range_coordination_score: <strong>${data.range_coordination_score}</strong></div>` : ''}
+                    ${data.nuts_possible !== undefined && data.nuts_possible !== null ? `<div>nuts_possible: <strong>${JSON.stringify(data.nuts_possible)}</strong></div>` : ''}
+                    ${data.draw_combinations !== undefined && data.draw_combinations !== null ? `<div>draw_combinations: <strong>${JSON.stringify(data.draw_combinations)}</strong></div>` : ''}
+                    ${data.equity_vs_range_percentiles !== undefined && data.equity_vs_range_percentiles !== null ? `<div>equity_vs_range_percentiles: <strong>${JSON.stringify(data.equity_vs_range_percentiles, null, 2)}</strong></div>` : ''}
+                </div>
+            </div>
             
             <div style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 10px; margin-bottom: 1rem;">
                 <h5 style="color: #FFD700; margin-bottom: 0.5rem;">Raw API Response (All Fields)</h5>

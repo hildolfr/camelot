@@ -26,4 +26,4 @@ alembic==1.13.1
 # Monitoring and logging
 python-json-logger==2.0.7
 
-# poker_knight is installed locally from ./poker_knight
+# poker_knight_ng is installed locally from ./poker_knightng

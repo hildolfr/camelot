@@ -1,9 +1,10 @@
 """Web UI routes."""
 
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
+import uuid
 
 # Set up templates directory
 templates_dir = Path(__file__).parent.parent.parent.parent / "templates"
@@ -15,10 +16,26 @@ router = APIRouter(tags=["web"])
 @router.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     """Render the main calculator page."""
-    return templates.TemplateResponse(
+    # Check if session exists, create if not
+    session_id = request.cookies.get("session_id")
+    
+    response = templates.TemplateResponse(
         "index.html",
         {"request": request, "title": "Camelot Poker Calculator"}
     )
+    
+    # Set session cookie if not present
+    if not session_id:
+        session_id = str(uuid.uuid4())
+        response.set_cookie(
+            key="session_id",
+            value=session_id,
+            max_age=30*24*60*60,  # 30 days
+            httponly=True,
+            samesite="lax"
+        )
+    
+    return response
 
 
 @router.get("/game", response_class=HTMLResponse)

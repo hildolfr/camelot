@@ -31,11 +31,12 @@ results/
 *.log
 .DS_Store
 poker_knight/
+poker_knightng/
 
 # Cache files
 poker_cache.db
 poker_cache.db-journal
 
-# Screenshots and temporary files
-fix-needed.png
-*.png
+# Temporary files
+*.tmp
+diag.txt

@@ -62,8 +62,12 @@ class ResultAdapter:
             "win_probability": getattr(result, 'win_probability', 0.0),
             "tie_probability": getattr(result, 'tie_probability', 0.0),
             "loss_probability": getattr(result, 'loss_probability', 0.0),
-            "simulations_run": getattr(result, 'simulations_run', 0),
+            # Map actual_simulations to simulations_run for compatibility
+            "simulations_run": getattr(result, 'actual_simulations', getattr(result, 'simulations_run', 0)),
+            "actual_simulations": getattr(result, 'actual_simulations', 0),
             "execution_time_ms": getattr(result, 'execution_time_ms', 0.0),
+            "execution_time_start": getattr(result, 'execution_time_start', None),
+            "execution_time_end": getattr(result, 'execution_time_end', None),
         }
         
         # Handle confidence interval
@@ -132,6 +136,48 @@ class ResultAdapter:
             adapted["bluff_catching_frequency"] = getattr(result, 'bluff_catching_frequency')
         
         # No longer tracking GPU/CPU backend - only fresh vs cached matters
+        
+        # Add new advanced analysis fields from poker_knightNG
+        
+        # SPR and betting analysis
+        if hasattr(result, 'spr'):
+            adapted["spr"] = getattr(result, 'spr')
+        if hasattr(result, 'pot_odds'):
+            adapted["pot_odds"] = getattr(result, 'pot_odds')
+        if hasattr(result, 'mdf'):
+            adapted["mdf"] = getattr(result, 'mdf')
+        if hasattr(result, 'equity_needed'):
+            adapted["equity_needed"] = getattr(result, 'equity_needed')
+        if hasattr(result, 'commitment_threshold'):
+            adapted["commitment_threshold"] = getattr(result, 'commitment_threshold')
+        
+        # Board analysis
+        if hasattr(result, 'nuts_possible'):
+            nuts = getattr(result, 'nuts_possible')
+            if isinstance(nuts, list):
+                adapted["nuts_possible"] = nuts
+        if hasattr(result, 'draw_combinations'):
+            draws = getattr(result, 'draw_combinations')
+            if isinstance(draws, dict):
+                adapted["draw_combinations"] = ResultAdapter.convert_numpy_types(draws)
+        if hasattr(result, 'board_texture_score'):
+            adapted["board_texture_score"] = getattr(result, 'board_texture_score')
+        
+        # Range analysis
+        if hasattr(result, 'equity_vs_range_percentiles'):
+            evr = getattr(result, 'equity_vs_range_percentiles')
+            if isinstance(evr, dict):
+                adapted["equity_vs_range_percentiles"] = ResultAdapter.convert_numpy_types(evr)
+        if hasattr(result, 'range_coordination_score'):
+            adapted["range_coordination_score"] = getattr(result, 'range_coordination_score')
+        
+        # Positional analysis
+        if hasattr(result, 'positional_advantage_score'):
+            adapted["positional_advantage_score"] = getattr(result, 'positional_advantage_score')
+        
+        # Hand analysis
+        if hasattr(result, 'hand_vulnerability'):
+            adapted["hand_vulnerability"] = getattr(result, 'hand_vulnerability')
         
         return adapted
     

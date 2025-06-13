@@ -2,7 +2,7 @@
 Cached poker calculator that wraps the base PokerCalculator with caching.
 """
 
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 import time
 from .poker_logic import PokerCalculator
 from .cache_storage import CacheStorage
@@ -31,7 +31,14 @@ class CachedPokerCalculator(PokerCalculator):
         simulation_mode: str = "default",
         hero_position: Optional[str] = None,
         stack_sizes: Optional[List[int]] = None,
-        pot_size: Optional[int] = None
+        pot_size: Optional[int] = None,
+        tournament_context: Optional[Dict[str, Any]] = None,
+        action_to_hero: Optional[str] = None,
+        bet_size: Optional[float] = None,
+        street: Optional[str] = None,
+        players_to_act: Optional[int] = None,
+        tournament_stage: Optional[str] = None,
+        blind_level: Optional[int] = None
     ) -> Dict:
         """
         Calculate poker hand probabilities with caching.
@@ -70,7 +77,14 @@ class CachedPokerCalculator(PokerCalculator):
         # Check if we have any dynamic parameters
         has_dynamic_params = (hero_position is not None or 
                             stack_sizes is not None or 
-                            pot_size is not None)
+                            pot_size is not None or
+                            tournament_context is not None or
+                            action_to_hero is not None or
+                            bet_size is not None or
+                            street is not None or
+                            players_to_act is not None or
+                            tournament_stage is not None or
+                            blind_level is not None)
         
         # Try to get from cache if no dynamic params or cache enabled
         cached_result = None
@@ -100,7 +114,9 @@ class CachedPokerCalculator(PokerCalculator):
         start_time = time.time()
         result = super().calculate(
             hero_hand, num_opponents, board_cards, 
-            simulation_mode, hero_position, stack_sizes, pot_size
+            simulation_mode, hero_position, stack_sizes, pot_size,
+            tournament_context, action_to_hero, bet_size, street,
+            players_to_act, tournament_stage, blind_level
         )
         calc_time = (time.time() - start_time) * 1000  # Convert to ms
         

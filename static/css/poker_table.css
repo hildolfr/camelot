@@ -259,6 +259,30 @@ body[data-player-count="2"] .player-seat[data-position="1"] {
     animation: winnerGlow 1s ease-in-out infinite;
 }
 
+.player-info.betting {
+    animation: bettingPulse 0.5s ease;
+}
+
+.player-info.all-in {
+    background: linear-gradient(135deg, rgba(255, 23, 68, 0.2) 0%, rgba(213, 0, 0, 0.2) 100%);
+    border-color: #FF1744;
+    animation: allInGlow 2s ease-in-out infinite;
+}
+
+@keyframes bettingPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+@keyframes allInGlow {
+    0%, 100% {
+        box-shadow: 0 0 20px rgba(255, 23, 68, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 40px rgba(255, 23, 68, 0.8);
+    }
+}
+
 @keyframes pulseGreen {
     0%, 100% { box-shadow: 0 0 20px rgba(76, 175, 80, 0.5); }
     50% { box-shadow: 0 0 30px rgba(76, 175, 80, 0.8); }
@@ -286,6 +310,18 @@ body[data-player-count="2"] .player-seat[data-position="1"] {
     font-size: 1.1rem;
     color: #FFD700;
     font-weight: bold;
+    transition: all 0.3s ease;
+}
+
+.player-stack.stack-increase {
+    animation: stackPulse 0.6s ease;
+    color: #4CAF50;
+}
+
+@keyframes stackPulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); color: #4CAF50; }
+    100% { transform: scale(1); }
 }
 
 .player-action {
@@ -402,7 +438,7 @@ body[data-player-count="2"] .player-seat[data-position="1"] .player-cards {
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
     position: relative;
     transform-style: preserve-3d;
-    transition: transform 0.3s ease;
+    transition: all 0.3s ease;
 }
 
 .hole-card.red {
@@ -428,18 +464,27 @@ body[data-player-count="2"] .player-seat[data-position="1"] .player-cards {
 }
 
 /* Card dealing animation */
+.hole-card:not(.dealing) {
+    opacity: 0;
+    transform: translateY(-50px) scale(0.8);
+}
+
 .hole-card.dealing {
-    animation: dealCard 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+    animation: dealCard 0.5s ease-out forwards;
 }
 
 @keyframes dealCard {
-    from {
-        transform: translateY(-200px) translateX(100px) rotateY(180deg) scale(0.5);
+    0% {
         opacity: 0;
+        transform: translateY(-50px) scale(0.8) rotateZ(-5deg);
     }
-    to {
-        transform: translateY(0) translateX(0) rotateY(0) scale(1);
+    60% {
         opacity: 1;
+        transform: translateY(5px) scale(1.02) rotateZ(1deg);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1) rotateZ(0deg);
     }
 }
 
@@ -477,6 +522,19 @@ body[data-player-count="2"] .player-seat[data-position="1"] .player-cards {
     color: #D32F2F;
 }
 
+/* Special animations for different streets */
+.board-card.flop-card {
+    animation: flopReveal 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+}
+
+.board-card.turn-card {
+    animation: turnReveal 0.7s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.board-card.river-card {
+    animation: riverReveal 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
 @keyframes flipIn {
     0% {
         opacity: 0;
@@ -488,6 +546,42 @@ body[data-player-count="2"] .player-seat[data-position="1"] .player-cards {
     100% {
         opacity: 1;
         transform: rotateY(0) scale(1);
+    }
+}
+
+@keyframes flopReveal {
+    0% {
+        opacity: 0;
+        transform: translateY(-30px) rotateY(180deg) scale(0.5);
+    }
+    60% {
+        transform: translateY(0) rotateY(90deg) scale(1.1);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) rotateY(0) scale(1);
+    }
+}
+
+@keyframes turnReveal {
+    0% {
+        opacity: 0;
+        transform: rotateY(180deg) scale(0.8);
+    }
+    100% {
+        opacity: 1;
+        transform: rotateY(0) scale(1);
+    }
+}
+
+@keyframes riverReveal {
+    0% {
+        opacity: 0;
+        transform: rotateY(180deg) rotateZ(-10deg) scale(0.8);
+    }
+    100% {
+        opacity: 1;
+        transform: rotateY(0) rotateZ(0) scale(1);
     }
 }
 
@@ -582,6 +676,18 @@ body[data-player-count="2"] .player-seat[data-position="1"] .player-cards {
 .betting-controls.active {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
+    animation: controlsSlideIn 0.3s ease-out;
+}
+
+@keyframes controlsSlideIn {
+    from {
+        transform: translateX(-50%) translateY(20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(-50%) translateY(0);
+        opacity: 1;
+    }
 }
 
 .bet-button {
@@ -634,9 +740,23 @@ body[data-player-count="2"] .player-seat[data-position="1"] .player-cards {
     animation: allInPulse 1s ease-in-out infinite;
 }
 
+.bet-button.will-be-all-in {
+    background: linear-gradient(135deg, #FF6B6B 0%, #FF1744 100%);
+    animation: willBeAllIn 0.8s ease-in-out infinite;
+}
+
 @keyframes allInPulse {
     0%, 100% { transform: scale(1); }
     50% { transform: scale(1.05); }
+}
+
+@keyframes willBeAllIn {
+    0%, 100% { 
+        box-shadow: 0 5px 20px rgba(255, 23, 68, 0.3);
+    }
+    50% { 
+        box-shadow: 0 5px 30px rgba(255, 23, 68, 0.6);
+    }
 }
 
 /* Bet slider */
@@ -703,7 +823,9 @@ body[data-player-count="2"] .player-seat[data-position="1"] .player-cards {
     stroke-linecap: round;
     transform: rotate(-90deg);
     transform-origin: center;
-    transition: stroke-dashoffset 1s linear, stroke 0.3s ease;
+    transition: stroke-dashoffset 0.1s linear, stroke 0.3s ease;
+    stroke-dasharray: 220;
+    stroke-dashoffset: 0;
 }
 
 .timer-path.warning {
@@ -790,20 +912,21 @@ body[data-player-count="2"] .player-seat[data-position="1"] .player-cards {
     position: fixed;
     bottom: 20px;
     right: 20px;
-    background: rgba(220, 20, 60, 0.9);
-    border: 2px solid rgba(255, 255, 255, 0.3);
+    background: rgba(220, 20, 60, 0.95);
+    border: 2px solid rgba(255, 255, 255, 0.5);
     border-radius: 25px;
-    padding: 0.5rem 1rem;
+    padding: 0.75rem 1.25rem;
     color: white;
     font-weight: bold;
     cursor: pointer;
     transition: all 0.3s ease;
-    z-index: 99999;
+    z-index: 99999;  /* Highest z-index to stay above everything */
     font-size: 0.9rem;
     user-select: none;
     pointer-events: auto !important;
     /* Ensure it's above everything */
     isolation: isolate;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), 0 0 30px rgba(220, 20, 60, 0.4);
 }
 
 .bug-report-button:hover {
@@ -1015,5 +1138,233 @@ body[data-player-count="2"] .player-seat[data-position="1"] .player-cards {
         right: 10px;
         font-size: 0.8rem;
         padding: 0.4rem 0.8rem;
+    }
+}
+
+/* Hand Strength Indicator */
+.hand-strength-container {
+    position: absolute;
+    top: 100px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.85);
+    border: 2px solid rgba(255, 215, 0, 0.3);
+    border-radius: 12px;
+    padding: 20px;
+    min-width: 280px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(10px);
+    z-index: 10;
+    opacity: 1;
+    transition: opacity 0.3s ease;
+}
+
+.hand-strength-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.strength-label {
+    color: #FFD700;
+    font-weight: bold;
+    font-size: 1.1em;
+}
+
+.current-hand {
+    color: #4CAF50;
+    font-weight: bold;
+    font-size: 0.95em;
+    transition: all 0.3s ease;
+}
+
+.current-hand.hand-improved {
+    animation: handImproved 1s ease;
+}
+
+@keyframes handImproved {
+    0% { transform: scale(1); color: #4CAF50; }
+    50% { transform: scale(1.2); color: #FFD700; }
+    100% { transform: scale(1); color: #4CAF50; }
+}
+
+.hand-strength-meter {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    height: 30px;
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 15px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.strength-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #F44336 0%, #FF9800 33%, #FFC107 66%, #4CAF50 100%);
+    transition: width 0.5s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.strength-bar.pulse {
+    animation: strengthPulse 0.6s ease;
+}
+
+@keyframes strengthPulse {
+    0%, 100% { filter: brightness(1); }
+    50% { filter: brightness(1.3); }
+}
+
+.strength-percentage {
+    color: white;
+    font-weight: bold;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+    font-size: 1.1em;
+}
+
+.hand-strength-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.95em;
+}
+
+.win-prob {
+    color: #4CAF50;
+}
+
+.tie-prob {
+    color: #FFC107;
+}
+
+/* Pot Odds Display */
+.pot-odds-info {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.odds-label {
+    color: #FFD700;
+    font-weight: bold;
+    margin-bottom: 8px;
+}
+
+.odds-details {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 0.9em;
+}
+
+.pot-odds, .pot-size {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.odds-calculation {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.odds-needed {
+    color: #FFC107;
+    font-size: 0.9em;
+}
+
+.odds-result {
+    font-weight: bold;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+
+.odds-result.good {
+    background: rgba(76, 175, 80, 0.3);
+    color: #4CAF50;
+    transition: all 0.3s ease;
+}
+
+.odds-result.bad {
+    background: rgba(244, 67, 54, 0.3);
+    color: #F44336;
+    transition: all 0.3s ease;
+}
+
+.odds-result.flash-good {
+    animation: flashGood 0.6s ease;
+}
+
+.odds-result.flash-bad {
+    animation: flashBad 0.6s ease;
+}
+
+@keyframes flashGood {
+    0%, 100% { background: rgba(76, 175, 80, 0.3); }
+    50% { background: rgba(76, 175, 80, 0.6); transform: scale(1.1); }
+}
+
+@keyframes flashBad {
+    0%, 100% { background: rgba(244, 67, 54, 0.3); }
+    50% { background: rgba(244, 67, 54, 0.6); transform: scale(1.1); }
+}
+
+/* Winning card highlights */
+.hole-card.winning-card {
+    animation: winningCardGlow 2s ease-in-out infinite;
+    border-color: #FFD700;
+}
+
+.board-card.winning-board-card {
+    animation: winningBoardGlow 2s ease-in-out infinite;
+    border-color: #FFD700;
+}
+
+@keyframes winningCardGlow {
+    0%, 100% {
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3), 0 0 20px rgba(255, 215, 0, 0.5);
+    }
+    50% {
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3), 0 0 30px rgba(255, 215, 0, 0.8);
+        transform: translateY(-5px);
+    }
+}
+
+@keyframes winningBoardGlow {
+    0%, 100% {
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4), 0 0 25px rgba(255, 215, 0, 0.5);
+    }
+    50% {
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4), 0 0 35px rgba(255, 215, 0, 0.8);
+    }
+}
+
+/* Message pulse animation */
+@keyframes messagePulse {
+    0%, 100% {
+        transform: translate(-50%, -50%) scale(1);
+        box-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
+    }
+    50% {
+        transform: translate(-50%, -50%) scale(1.05);
+        box-shadow: 0 0 50px rgba(255, 215, 0, 0.8);
+    }
+}
+
+/* Mobile responsiveness for hand strength */
+@media (max-width: 768px) {
+    .hand-strength-container {
+        top: 80px;
+        right: 10px;
+        min-width: 220px;
+        padding: 15px;
+    }
+    
+    .strength-label {
+        font-size: 1em;
+    }
+    
+    .current-hand {
+        font-size: 0.85em;
     }
 }

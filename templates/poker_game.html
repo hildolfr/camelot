@@ -125,6 +125,34 @@
             </div>
         </div>
         
+        <!-- Hand Strength Indicator -->
+        <div class="hand-strength-container" id="handStrengthContainer" style="display: none;">
+            <div class="hand-strength-header">
+                <span class="strength-label">Hand Strength</span>
+                <span class="current-hand" id="currentHandName"></span>
+            </div>
+            <div class="hand-strength-meter">
+                <div class="strength-bar" id="strengthBar" style="width: 0%;">
+                    <span class="strength-percentage" id="strengthPercentage">0%</span>
+                </div>
+            </div>
+            <div class="hand-strength-info">
+                <span class="win-prob">Win: <span id="winProb">0%</span></span>
+                <span class="tie-prob">Tie: <span id="tieProb">0%</span></span>
+            </div>
+            <div class="pot-odds-info" id="potOddsInfo" style="display: none;">
+                <div class="odds-label">Pot Odds</div>
+                <div class="odds-details">
+                    <span class="pot-odds">To Call: $<span id="toCallAmount">0</span></span>
+                    <span class="pot-size">Pot: $<span id="potSizeDisplay">0</span></span>
+                </div>
+                <div class="odds-calculation">
+                    <span class="odds-needed">Need: <span id="oddsNeeded">0%</span></span>
+                    <span class="odds-result" id="oddsResult">--</span>
+                </div>
+            </div>
+        </div>
+        
         <!-- Betting Controls -->
         <div class="betting-controls" id="bettingControls">
             <button class="bet-button fold" onclick="playerAction('fold')" ondblclick="return false">

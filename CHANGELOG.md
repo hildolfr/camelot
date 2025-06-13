@@ -1,305 +1,33 @@
-# Camelot Changelog
-
-All notable changes to the Camelot project will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+# Changelog
 
 ## [Unreleased]
 
-### Added - 2025-06-13
-- **Calculator Request Logs in Log Viewer UI**:
-  - Calculator logs now visible alongside game logs and bug reports
-  - New calculator logs category with 🧮 icon in blue (#2196F3)
-  - Calculator logs were already being collected but not displayed
-  - Updated log viewer description to mention calculator requests
-  - All calculator API requests are logged with session ID, IP, cards, results, and timing
-- **Collapsible Log Categories**:
-  - Log categories (Game, Calculator, Bug Reports) are now collapsible
-  - Categories default to collapsed state for cleaner initial view
-  - Click on category header to expand/collapse the file list
-  - Chevron icon (▼) indicates expand/collapse state with smooth rotation
-  - Expand/collapse state is saved to localStorage and restored on page reload
-  - Improved visual separation between categories with subtle backgrounds
-  - Smooth animations for expand/collapse transitions
+### Fixed
+- Fixed critical pot calculation bug that was creating extra chips by accumulating pots across betting rounds
+  - Changed pot calculation to only run once at showdown instead of after each betting round
+  - Renamed `total_bet_this_round` to `total_bet_this_hand` for clarity
+  - Added validation to ensure pot totals never exceed total chips in play
+  - Bug was discovered through user bug report system showing pots totaling more than starting chips
+- Fixed game over screen overlay blocking bug report button
+  - Reduced game over overlay z-index from 9998 to 9000
+  - Boosted bug report button z-index to ensure it stays accessible
+  - Bug report button now remains clickable even when game over screen is displayed
 
-### Fixed - 2025-01-06
-- **Fixed tournament mode 500 error**: Updated API response model to correctly handle `tournament_pressure` field
-  - Changed from `Dict[str, float]` to `Dict[str, Any]` to accommodate mixed types
-  - poker_knightNG returns `stage: 'early'` as a string, not a float
-  - Tournament mode calculations now work correctly with stack_sizes and pot_size
-- **Fixed position dropdown in web UI**: Updated position options to match poker_knightNG accepted values
-  - Removed specific positions (UTG, MP, CO) that weren't recognized by the solver
-  - Replaced with position categories: early, middle, late (plus button, sb, bb)
-  - Updated position help modal to explain the position groupings
-  - Position-aware calculations now work correctly
-
-### Changed - 2025-01-06
-- **Updated UI for poker_knightNG API v2 changes**:
-  - Changed field existence checks from `!== undefined` to `> 0` throughout UI
-  - Expert view now always shows Advanced Decision Metrics section
-  - Fields with 0 values are displayed with reduced opacity and explanatory text
-  - Mathematician view shows all fields with explanatory notes for 0 values
-  - Simplified API request building (removed conditional parameter comments)
-- **New API Behavior Integrated**:
-  - poker_knightNG now returns all advanced fields with 0 values when not calculable
-  - Multi-way analysis now triggers with 2+ players (previously 3+)
-  - `hand_vulnerability` and `positional_advantage_score` are always calculated
-  - `spr` returns stack in BBs when pot_size=0
-  - `commitment_threshold` always calculated based on SPR
-- **UI Improvements**:
-  - Board Analysis section shows even without board cards (with "Requires 3+ board cards" note)
-  - Position Value shows "No position specified" when 0
-  - Pot Odds & MDF section indicates "No bet facing" when values are 0
-  - SPR section shows "No pot/stacks specified" when 0
-- **Created Update Plans**: 
-  - `plans/poker_knightng_update_20250106.md`
-  - `plans/poker_knightng_integration_update_20250106.md`
+### Added
+- Hand strength indicator showing win probability and current hand
+- Pot odds calculator for better decision making
+- Enhanced animations and visual feedback
+- Calculator logging system for debugging
+- Comprehensive bug fixes for all-in showdown visibility
+- Z-index fix for bug report button visibility
 
 ### Changed
-- **Major Update**: Migrated from poker_knight to poker_knightNG solver module
-- Integrated poker_knightNG server API with GPU acceleration
-- Added singleton PokerServerManager for GPU keep-alive (60s warmth retention)
-- Implemented card format conversion ('10' → 'T') for poker_knightNG compatibility
-- Added all new poker_knightNG analysis fields:
-  - SPR (Stack-to-Pot Ratio) and commitment threshold
-  - Pot odds, MDF (Minimum Defense Frequency), equity needed
-  - Board texture analysis (dry/dynamic/wet classification)
-  - Nuts analysis and draw combinations
-  - Positional advantage score
-  - Hand vulnerability metrics
-- Added batch calculation endpoint `/api/calculate-batch`
-- Updated AI player to use advanced metrics for decision making
-- Enhanced UI calculator with new "Advanced Decision Metrics" section
-- Updated cache manager for hybrid caching (SQLite + GPU warmth)
-- Added comprehensive test files for poker_knightNG integration
-- Achieved ~2-5ms response times with warm GPU (99.5% latency reduction)
-- Cold start metrics excluded from performance tracking
-- Batch processing capability for multiple calculations
-- Added betting action interface in tournament mode:
-  - Action facing selector (check/bet/raise/re-raise)
-  - Bet size input for pot-relative betting
-  - Automatic street detection based on board cards
-  - UI clearly indicates this enables advanced metrics
+- Improved AI decision making with hand evaluation
+- Enhanced UI responsiveness and performance
+- Better error handling and logging throughout
 
-### Fixed
-- Cache warming indicator now correctly shows new entries added this session instead of total cache count
-- Cache warming progress now displays as "+X (Y%)" to clarify what's being added
-- Rolling rate calculation now tracks new entries per minute instead of total entries
-
-### Added
-- Initial project setup with Python virtual environment
-- Cloned poker_knight module from github.com/hildolfr/poker_knight
-- Created project structure with TODO.md and CHANGELOG.md
-- Established project goals and development roadmap
-- Implemented FastAPI web framework with async support
-- Created poker calculator backend wrapper around poker_knight
-- Built REST API with `/api/calculate` endpoint for poker odds calculation
-- Designed mobile-first responsive web UI with visual card selection
-- Added interactive JavaScript for real-time card selection and results display
-- Implemented input validation for cards and game rules
-- **Independent caching system** to replace poker_knight v1.7.0's removed cache:
-  - Hybrid memory (2GB) + SQLite (8GB) storage architecture
-  - Sub-millisecond cache hits with ~3000x speedup
-  - Complete game state caching from preflop to river
-  - Cache warming system for common scenarios
-  - Real-time cache statistics and monitoring
-- Created visually appealing UI with animations and gradient backgrounds
-- Git repository initialization with proper commit structure
-- Fixed calculate button responsiveness and z-index issues
-- Fixed particle effects spawning at top of page
-- Added card sorting by suit for easier selection
-- Implemented side panel for desktop results display
-- Fixed HTTP 422 validation errors with proper board card rules
-- Created ResultAdapter to handle poker_knight type inconsistencies
-- Doubled particle density for enhanced visual effects
-- Added history ticker with past calculations
-- Implemented full history modal with detailed calculation records
-- Removed ticker based on user feedback (visually distracting)
-- Enhanced history UI with:
-  - Game phase filters (All, Pre-flop, Flop, Turn, River)
-  - Statistics dashboard showing aggregate data
-  - Clear history functionality with confirmation dialog
-  - Smooth animations and hover effects
-  - Color-coded result indicators
-  - Shimmer effects on statistics panel
-  - Imploding animation when clearing history (staggered effect)
-  - Visual poker table representation for selected history items
-  - Interactive history items that show game visualization
-  - Realistic poker table with cards displayed as on a real table
-  - Game details panel with win rate, opponents, stage, and time
-  - Fixed pre-flop visualization to show empty table (no blank cards)
-- Added progressive statistics dropdown to results panel:
-  - Basic: Just win rate and hand strength meter
-  - Standard: Common metrics (win rate, speed, simulations) - default
-  - Advanced: Detailed breakdown with confidence intervals and hand categories
-  - Mathematician: Complete analysis with equity, pot odds, EV, and distribution data
-  - Replaced tabs with cleaner dropdown menu to prevent overflow
-  - User's detail level preference is saved and restored between sessions
-  - Modified Standard view: removed simulation count/speed, added likely hand outcomes
-  - Added Expert view with advanced poker metrics:
-    - Core metrics: win rate, total equity, pot odds needed
-    - Strategic insights: hand classification, recommended actions, bluff frequencies
-    - Placeholder for advanced features (ICM, position, multi-way stats)
-    - Note about additional parameters needed for tournament features
-- Redesigned loading indicator:
-  - Moved to inline position next to opponent selector (no overlay)
-  - Smaller animated shuffling cards that don't disrupt layout
-  - "Calculating..." text only
-  - Uses available space efficiently
-- Moved win/loss/tie percentages below the colored bar for better readability
-- Updated Math Mode to show ALL available statistics with maximum precision
-- Added Tournament Mode with advanced features:
-  - Toggle switch to enable tournament-specific options
-  - Position selector (Button, SB, BB, UTG, MP, CO, etc.)
-  - Dynamic stack size inputs for hero and each opponent
-  - Stack sizes in big blinds for ICM calculations
-  - Automatically adjusts inputs based on number of opponents
-  - API support for position-aware equity and ICM calculations
-- Added position help modal explaining all table positions
-- Enhanced Expert view with actionable strategy recommendations
-- Modified card display to show rank and suit in both corners (top-left and bottom-right)
-- Fixed card display bug showing multiple suits by:
-  - Removing redundant center element
-  - Restructuring card corners with proper div containers
-  - Correcting rotation (only bottom-right corner should rotate)
-  - Simplifying CSS for card corner elements
-- Reorganized card selection interface:
-  - Cards now displayed in separate rows by suit
-  - Added suit symbols as row labels
-  - Improved card accessibility and findability
-  - Fixed card sizing for better row layout
-  - Added mobile-responsive adjustments for row view
-  - Implemented smart card scaling to keep all suits on one row when possible
-  - Cards dynamically resize between 40px-70px width to fit available space
-  - Only splits to 2 rows per suit on very small screens (<500px) as last resort
-  - Card corner text scales proportionally with card size
-  - Improved text readability on scaled cards:
-    - Fixed font sizes for card corners (0.75rem default, 0.7rem on small screens)
-    - Reduced card border thickness to maximize content space
-    - Adjusted selection badge size to not overwhelm small cards
-    - Text remains readable even at minimum card size (35px)
-- Added help icons to Expert view explaining poker terminology:
-  - Core Metrics: Total Equity, Pot Odds Needed
-  - Strategic Insights: Hand Class, Recommended Action, Bluff Frequency
-  - Advanced Features: ICM, Position, Defense, SPR explanations
-  - Mobile-friendly tooltips with tap support
-- Fixed Expert view tournament note to only show when pot size is 0
-- Improved tooltip z-index and positioning to prevent overlap issues
-- Fixed tournament mode persistence issues:
-  - Tournament mode state now saved to localStorage
-  - Position, stack sizes, and pot size are preserved between sessions
-  - Tournament options panel correctly shows on page load when mode is enabled
-  - All tournament inputs restore their values from previous session
-- Fixed tournament features integration with poker_knight:
-  - poker_knight v1.5.0 DOES support ICM equity, position-aware equity, and SPR calculations
-  - Issue was missing fields in ResultAdapter and API models
-  - Added support for: tournament_pressure, fold_equity_estimates, bubble_factor, bluff_catching_frequency
-  - Some features (defense_frequencies, multi_way_statistics) return None in certain scenarios
-  - Tournament features now properly display when pot size > 0 and tournament mode is enabled
-- Added help icons to Expert statistics view:
-  - Inline question mark icons next to complex poker terms
-  - Hover tooltips explaining technical terminology
-  - Mobile-friendly tap interactions for tooltips
-- Fixed tooltip positioning issues in Expert view:
-  - Changed from nested tooltips to dynamic positioning system
-  - Tooltips now use fixed positioning to avoid being cut off by containers
-  - Smart positioning that keeps tooltips on screen (above/below as needed)
-  - Single tooltip element reused for all help icons for better performance
-  - Increased z-index to 10000 to ensure tooltips appear above all other elements
-- Enhanced Expert and Math tabs with new tournament statistics:
-  - Expert tab now includes strategic interpretations for:
-    - Stack Dynamics (big/average/short stack strategies)
-    - Fold Equity (position-based betting adjustments)
-    - Bluff Catching Frequency (when to call vs fold)
-  - Math tab shows raw values for all tournament features:
-    - tournament_pressure object with stack percentages
-    - fold_equity_estimates with position modifiers
-    - bubble_factor and bluff_catching_frequency values
-    - Pretty-printed JSON for complex objects
-  - All new stats have help tooltips explaining their meaning
-  - Added Multi-way Dynamics interpretation for games with 3+ opponents
-- Fixed visual issues:
-  - Removed scrollbar from results panel (hidden but still scrollable)
-  - Fixed Core Metrics tooltips being obscured by using horizontal positioning
-  - Tooltips for Total Equity and Pot Odds now appear to the left/right instead of above
-  - Removed tooltip arrow for cleaner appearance with dynamic positioning
-  - Explanations for: Total Equity, Pot Odds, ICM, SPR, Bluff Frequency, etc.
-  - CSS styling for help icons with smooth animations
-  - Event delegation for dynamically created help elements
-  - Reorganized Advanced Strategic Adjustments with grid layout:
-    - Better visual separation between metrics and advice
-    - Each item in its own container with subtle background
-    - Consistent column widths for improved readability
-- Added interactive charts using Chart.js:
-  - Win/Tie/Loss Donut Chart replacing horizontal bars
-    - Animated donut chart with percentages
-    - Total equity displayed in center
-    - Color-coded segments (green/yellow/red)
-    - Responsive and mobile-friendly
-  - Hand Categories Horizontal Bar Chart
-    - Visual representation of likely hand outcomes
-    - Color-coded bars from strongest to weakest
-    - Animated entry with staggered delays
-    - Replaces text list in Standard/Advanced views
-    - Values displayed directly on bars
-- Implemented extensive caching system:
-  - Leverages poker_knight's built-in unified cache with SQLite persistence
-  - Cache stored in `~/.camelot_cache/` to avoid file watcher issues
-  - Priority hands cached immediately at startup (~25 hands, <5 seconds)
-  - Full preflop cache warming in background (1,326 hands × 6 opponents = 7,956 scenarios)
-  - Common board patterns cached for frequent flop textures
-  - Cache persists between daemon restarts
-  - API endpoint `/api/cache-status` to monitor cache progress
-  - Expected performance: 2000x speedup for cached queries (<1ms vs 100-2000ms)
-  - Watchfiles configured to exclude cache files from reload triggers
-
-### Technical Implementation
-- FastAPI application structure with modular design
-- Pydantic models for request/response validation
-- Core poker logic wrapper with comprehensive validation
-- Mobile-optimized HTML/CSS with touch-friendly interface
-- Real-time calculation feedback with loading states
-- CORS support for API access
-- LocalStorage for history persistence
-- Responsive filter system for history browsing
-
-### Fixed
-- Calculate button z-index and responsiveness issues
-- Particle spawning location (now bottom/middle only)
-- HTTP 422 errors with invalid board card configurations
-- Type mismatch errors from poker_knight confidence_interval
-- Timer display showing "NaNd ago" in history
-- Visual clutter from ticker implementation
-
-### Planning
-- Testing suite with statistics collection
-- Human-playable poker demo game
-- Database integration for stats storage
-- WebSocket support for real-time games
-
-## [0.1.0] - 2025-01-06
-
-### Added
-- Complete web UI and REST API implementation
-- Poker calculator with visual card selection
-- Mobile-responsive design
-- Real-time calculation feedback
-- API documentation with Swagger UI
-- Basic test suite
-- README documentation
-- Startup script for easy deployment
-
-### MVP Complete
-- Web UI with poker calculator ✅
-- REST API for external integration ✅
-- Mobile/tablet optimization ✅
-- Visual card interface ✅
-- Input validation and error handling ✅
-
-## [0.0.1] - 2025-01-06
-
-### Added
-- Project initialization
-- CLAUDE.md with project specifications
-- Basic directory structure
+## Previous Updates
+- Added bug reporting system with dedicated logging
+- Implemented poker game engine with Texas Hold'em rules
+- Added navigation bar and lobby interface
+- Integrated poker_knightng GPU-accelerated solver

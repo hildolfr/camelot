@@ -1,7 +1,7 @@
-"""AI Player implementation using poker_knight for decision making."""
+"""AI Player implementation using poker_knightNG for advanced decision making."""
 
 import random
-from typing import Tuple, List, Optional
+from typing import Tuple, List, Optional, Dict, Any
 import logging
 import os
 from datetime import datetime
@@ -39,7 +39,7 @@ logger.setLevel(logging.DEBUG)
 
 
 class AIPlayer:
-    """AI player that makes decisions using poker_knight calculations."""
+    """AI player that makes decisions using poker_knightNG calculations with advanced analysis."""
     
     def __init__(self, difficulty: str = "medium"):
         """Initialize AI player with difficulty level."""
@@ -116,15 +116,18 @@ class AIPlayer:
             logger.info(f"Current bet: {game_state.current_bet}, AI's current bet: {ai_player.current_bet}")
             logger.info(f"Is someone all-in: {is_facing_all_in}, Must go all-in to call: {can_only_call_all_in}")
         
-        # Simple decision logic based on position and stack
-        # In a real implementation, we would call poker_knight here
-        # to get actual hand strength and make informed decisions
+        # Get advanced analysis from poker_knightNG if available
+        analysis = self._get_poker_analysis(game_state, ai_player)
         
-        # For now, use simplified logic
-        if game_state.phase == GamePhase.PRE_FLOP:
-            action, amount = self._preflop_decision(game_state, ai_player, pot_odds)
+        # Use advanced metrics if available, otherwise fall back to simple logic
+        if analysis and 'win_probability' in analysis:
+            action, amount = self._make_advanced_decision(game_state, ai_player, analysis)
         else:
-            action, amount = self._postflop_decision(game_state, ai_player, pot_odds)
+            # Fall back to simple logic
+            if game_state.phase == GamePhase.PRE_FLOP:
+                action, amount = self._preflop_decision(game_state, ai_player, pot_odds)
+            else:
+                action, amount = self._postflop_decision(game_state, ai_player, pot_odds)
         
         # Final validation: NEVER allow CHECK when facing a bet
         if action == PlayerAction.CHECK and game_state.current_bet > ai_player.current_bet:
@@ -409,3 +412,133 @@ class AIPlayer:
         
         # Adjust based on board texture (simplified)
         return base_strength * (0.7 + random.random() * 0.3)
+    
+    def _get_poker_analysis(self, game_state: GameState, ai_player: Player) -> Optional[Dict[str, Any]]:
+        """Get advanced analysis from poker_knightNG."""
+        try:
+            # Import here to avoid circular imports
+            from ..core.cached_poker_calculator import get_cached_calculator
+            calculator = get_cached_calculator()
+            
+            # Determine street
+            street_map = {
+                GamePhase.PRE_FLOP: "preflop",
+                GamePhase.FLOP: "flop",
+                GamePhase.TURN: "turn",
+                GamePhase.RIVER: "river"
+            }
+            street = street_map.get(game_state.phase, "preflop")
+            
+            # Determine action facing
+            to_call = game_state.current_bet - ai_player.current_bet
+            if to_call > 0:
+                action_to_hero = "bet" if game_state.current_bet == game_state.big_blind else "raise"
+            else:
+                action_to_hero = "check"
+            
+            # Calculate bet size relative to pot
+            pot_size = sum(pot.amount for pot in game_state.pots)
+            bet_size = to_call / pot_size if pot_size > 0 and to_call > 0 else 0
+            
+            # Count active players
+            active_players = [p for p in game_state.players if not p.has_folded]
+            num_opponents = len(active_players) - 1
+            
+            # Get stack sizes
+            stack_sizes = [p.stack + p.current_bet for p in active_players if p.id == ai_player.id or not p.has_folded]
+            
+            # Players to act
+            players_to_act = sum(1 for p in game_state.players[game_state.current_player_index + 1:] if not p.has_folded)
+            
+            # Call calculator with all new parameters
+            result = calculator.calculate(
+                hero_hand=ai_player.hole_cards,
+                num_opponents=num_opponents,
+                board_cards=game_state.board_cards if game_state.board_cards else None,
+                simulation_mode="fast",  # Fast mode for game play
+                action_to_hero=action_to_hero,
+                bet_size=bet_size,
+                street=street,
+                pot_size=pot_size,
+                stack_sizes=stack_sizes,
+                players_to_act=players_to_act
+            )
+            
+            return result
+            
+        except Exception as e:
+            logger.debug(f"Could not get poker analysis: {e}")
+            return None
+    
+    def _make_advanced_decision(self, game_state: GameState, ai_player: Player, analysis: Dict[str, Any]) -> Tuple[PlayerAction, int]:
+        """Make decision based on advanced poker_knightNG analysis."""
+        to_call = game_state.current_bet - ai_player.current_bet
+        
+        # Extract key metrics
+        win_prob = analysis.get('win_probability', 0.5)
+        pot_odds = analysis.get('pot_odds', 0)
+        equity_needed = analysis.get('equity_needed', pot_odds)
+        mdf = analysis.get('mdf', 0.5)  # Minimum defense frequency
+        spr = analysis.get('spr', 10)  # Stack-to-pot ratio
+        commitment_threshold = analysis.get('commitment_threshold', 4)
+        
+        logger.info(f"\n=== AI {ai_player.id} ADVANCED DECISION ===")
+        logger.info(f"Win probability: {win_prob:.2%}, Pot odds: {pot_odds:.2%}")
+        logger.info(f"Equity needed: {equity_needed:.2%}, MDF: {mdf:.2%}")
+        logger.info(f"SPR: {spr:.2f}, Commitment threshold: {commitment_threshold:.2f}")
+        
+        # Adjust for difficulty
+        adjusted_win_prob = win_prob * (1 - self.params["randomness"] * 0.3)
+        
+        # Decision logic based on advanced metrics
+        if to_call == 0:  # No bet to face
+            if win_prob > 0.7:  # Strong hand
+                raise_amount = self._calculate_raise_amount(game_state, ai_player)
+                if raise_amount > 0:
+                    return PlayerAction.RAISE, raise_amount
+            elif win_prob > 0.5 and random.random() < self.params["aggression"]:
+                # Semi-bluff with decent equity
+                raise_amount = self._calculate_raise_amount(game_state, ai_player)
+                if raise_amount > 0:
+                    return PlayerAction.RAISE, raise_amount
+            return PlayerAction.CHECK, 0
+            
+        else:  # Facing a bet
+            # Check if we're pot committed
+            if spr <= commitment_threshold and win_prob > 0.3:
+                logger.info(f"AI {ai_player.id} is pot committed (SPR={spr:.2f})")
+                if to_call >= ai_player.stack:
+                    return PlayerAction.ALL_IN, 0
+                else:
+                    return PlayerAction.CALL, 0
+            
+            # Use MDF for defense decisions
+            defense_roll = random.random()
+            should_defend = defense_roll < mdf
+            
+            # Check if we have direct odds to call
+            if adjusted_win_prob > equity_needed:
+                # We have the odds
+                if to_call >= ai_player.stack:
+                    return PlayerAction.ALL_IN, 0
+                elif win_prob > 0.65 and ai_player.stack > to_call * 2:
+                    # Strong hand, consider raising
+                    raise_amount = self._calculate_raise_amount(game_state, ai_player)
+                    if raise_amount > 0:
+                        return PlayerAction.RAISE, raise_amount
+                return PlayerAction.CALL, 0
+            
+            # Bluff catching based on MDF
+            elif should_defend and win_prob > 0.35:
+                logger.info(f"AI {ai_player.id} defending based on MDF")
+                if to_call >= ai_player.stack:
+                    # Only defend with reasonable equity when all-in
+                    if win_prob > 0.4:
+                        return PlayerAction.ALL_IN, 0
+                    else:
+                        return PlayerAction.FOLD, 0
+                return PlayerAction.CALL, 0
+            
+            # Fold
+            else:
+                return PlayerAction.FOLD, 0

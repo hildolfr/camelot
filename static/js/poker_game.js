@@ -14,7 +14,10 @@ const sounds = {
     win: { frequency: 1600, duration: 500 },
     fold: { frequency: 400, duration: 200 },
     check: { frequency: 1000, duration: 100 },
-    bet: { frequency: 900, duration: 150 }
+    bet: { frequency: 900, duration: 150 },
+    raise: { frequency: 1100, duration: 200 },
+    allIn: { frequency: 1400, duration: 300 },
+    turn: { frequency: 500, duration: 80 }
 };
 
 // Audio context
@@ -255,7 +258,7 @@ function initAudio() {
 }
 
 // Play sound effect
-function playSound(soundName) {
+function playSound(soundName, variation = 0) {
     if (!soundEnabled || !audioContext || !sounds[soundName]) return;
     
     const sound = sounds[soundName];
@@ -265,8 +268,13 @@ function playSound(soundName) {
     oscillator.connect(gainNode);
     gainNode.connect(audioContext.destination);
     
-    oscillator.frequency.value = sound.frequency;
-    gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+    // Add slight frequency variation for more natural sound
+    const frequencyVariation = 1 + (variation * 0.1);
+    oscillator.frequency.value = sound.frequency * frequencyVariation;
+    
+    // Vary volume slightly
+    const volume = 0.1 * (0.8 + Math.random() * 0.4);
+    gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
     gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + sound.duration / 1000);
     
     oscillator.start(audioContext.currentTime);
@@ -638,25 +646,34 @@ async function playAnimation(animation) {
             if (animation.message) {
                 console.log(animation.message);
                 // Show message on screen for important delays
-                if (animation.message.includes('busted') || animation.message.includes('all-in')) {
+                if (animation.message.includes('eliminated') || animation.message.includes('all-in') || animation.message.includes('All players')) {
                     const messageEl = document.createElement('div');
                     messageEl.style.cssText = `
                         position: fixed;
                         top: 30%;
                         left: 50%;
                         transform: translate(-50%, -50%);
-                        background: rgba(0, 0, 0, 0.8);
+                        background: rgba(0, 0, 0, 0.9);
                         color: #FFD700;
-                        padding: 1rem 2rem;
-                        border-radius: 10px;
-                        font-size: 1.2rem;
+                        padding: 1.5rem 3rem;
+                        border-radius: 15px;
+                        font-size: 1.5rem;
                         font-weight: bold;
-                        z-index: 100;
+                        z-index: 1000;
                         opacity: 0;
                         transition: opacity 0.5s ease-in;
+                        border: 2px solid #FFD700;
+                        box-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
+                        text-align: center;
+                        min-width: 400px;
                     `;
                     messageEl.textContent = animation.message;
                     document.body.appendChild(messageEl);
+                    
+                    // Add pulsing animation for all-in messages
+                    if (animation.message.includes('All players all-in')) {
+                        messageEl.style.animation = 'messagePulse 2s ease-in-out infinite';
+                    }
                     
                     setTimeout(() => {
                         messageEl.style.opacity = '1';
@@ -666,7 +683,7 @@ async function playAnimation(animation) {
                     setTimeout(() => {
                         messageEl.style.opacity = '0';
                         setTimeout(() => messageEl.remove(), 500);
-                    }, animation.delay - 500);
+                    }, Math.max(animation.delay - 500, 1000));
                 }
             }
             break;
@@ -681,6 +698,17 @@ async function playAnimation(animation) {
             
         case 'celebration':
             await animateCelebration(animation);
+            break;
+            
+        case 'hand_complete':
+            // Signal that the hand is complete - now safe to check game state
+            console.log('Hand complete animation received');
+            // Mark game state as ready for game over check
+            if (gameState) {
+                gameState.phase = 'GAME_OVER';
+                // Force UI update to process game over
+                setTimeout(() => updateUI(), 100);
+            }
             break;
     }
 }
@@ -724,23 +752,36 @@ async function animateDealCard(animation) {
     }
     
     const card = document.createElement('div');
-    card.className = 'hole-card face-down dealing';
+    card.className = 'hole-card face-down';
+    
+    // Add staggered animation delay for multiple cards
+    const dealDelay = existingCards.length * 200;
+    
+    // Append card immediately but keep it invisible
+    cardsContainer.appendChild(card);
+    
+    // Trigger dealing animation after a short delay
+    setTimeout(() => {
+        card.classList.add('dealing');
+        playSound('cardFlip', Math.random());
+    }, dealDelay);
     
     if (animation.is_hero && player) {
-        // Show hero cards
-        const cardData = player.hole_cards[animation.card_index];
-        if (cardData) {
-            card.classList.remove('face-down');
-            card.innerHTML = formatCard(cardData);
-            if (cardData.includes('♥') || cardData.includes('♦')) {
-                card.classList.add('red');
+        // Show hero cards after deal animation completes
+        setTimeout(() => {
+            const cardData = player.hole_cards[animation.card_index];
+            if (cardData) {
+                // Simple reveal without complex animations
+                card.classList.remove('face-down');
+                card.innerHTML = formatCard(cardData);
+                if (cardData.includes('♥') || cardData.includes('♦')) {
+                    card.classList.add('red');
+                }
             }
-        }
+        }, dealDelay + 600);
     }
     
-    cardsContainer.appendChild(card);
-    playSound('cardFlip');
-    await sleep(200);
+    await sleep(300 + dealDelay);
 }
 
 // Animate board card
@@ -753,7 +794,20 @@ async function animateBoardCard(animation) {
     
     const card = document.createElement('div');
     card.className = 'board-card';
-    card.style.animationDelay = '0ms';
+    
+    // Stagger board cards for better visual effect
+    const baseDelay = currentBoardCount * 150;
+    card.style.animationDelay = `${baseDelay}ms`;
+    
+    // Add phase-specific animation class
+    if (currentBoardCount === 0) {
+        card.classList.add('flop-card');
+    } else if (currentBoardCount === 3) {
+        card.classList.add('turn-card');
+    } else if (currentBoardCount === 4) {
+        card.classList.add('river-card');
+    }
+    
     card.innerHTML = formatCard(animation.card);
     
     if (animation.card.includes('♥') || animation.card.includes('♦')) {
@@ -761,40 +815,75 @@ async function animateBoardCard(animation) {
     }
     
     communityCards.appendChild(card);
-    playSound('cardFlip');
+    
+    // Delayed sound for staggered effect
+    setTimeout(() => playSound('cardFlip'), baseDelay);
     
     // Increase delay for board cards to make them more visible
-    await sleep(500);
+    await sleep(500 + baseDelay);
 }
 
 // Animate bet/raise/call
 async function animateBet(animation) {
     const player = getPlayerById(animation.player_id);
     const chips = document.getElementById(`chips_${animation.player_id}`);
+    const playerInfo = document.getElementById(`player_${animation.player_id}`);
     
-    // Add chips to player's bet area
-    const chip = createChip(animation.amount);
-    chips.appendChild(chip);
+    // Add visual feedback to player box
+    playerInfo.classList.add('betting');
     
-    // Update player stack
+    // Create chip stack with animation
+    const chipCount = Math.min(5, Math.ceil(animation.amount / 20));
+    for (let i = 0; i < chipCount; i++) {
+        setTimeout(() => {
+            const chip = createChip(animation.amount / chipCount);
+            chip.style.opacity = '0';
+            chip.style.transform = 'translateY(-20px)';
+            chips.appendChild(chip);
+            
+            // Animate chip appearance
+            setTimeout(() => {
+                chip.style.transition = 'all 0.3s ease';
+                chip.style.opacity = '1';
+                chip.style.transform = 'translateY(0)';
+            }, 10);
+            
+            playSound('chipClick');
+        }, i * 100);
+    }
+    
+    // Update player stack with animation
     updatePlayerStack(animation.player_id, player.stack);
     
     // Update bet displays immediately
     updatePlayerBetDisplays();
     
-    // Show action
+    // Show action with enhanced styling
     let actionText = animation.action.toUpperCase();
+    let soundName = 'bet';
+    
     if (animation.action === 'call') {
         actionText = `CALL $${animation.amount}`;
+        soundName = 'bet';
     } else if (animation.action === 'raise') {
         actionText = `RAISE $${animation.amount}`;
+        soundName = 'raise';
     } else if (animation.action === 'all_in') {
         actionText = 'ALL IN!';
+        soundName = 'allIn';
+        // Add special all-in animation
+        playerInfo.classList.add('all-in');
     }
     
     showPlayerAction(animation.player_id, actionText);
-    playSound('bet');
-    await sleep(500);
+    playSound(soundName);
+    
+    // Remove visual feedback
+    setTimeout(() => {
+        playerInfo.classList.remove('betting');
+    }, 1000);
+    
+    await sleep(500 + (chipCount * 100));
 }
 
 // Animate fold
@@ -847,9 +936,53 @@ async function animateAwardPot(animation) {
     }
     
     const potAmount = document.getElementById('potAmount');
+    const playerInfo = document.getElementById(`player_${animation.winner_id}`);
+    const playerStack = document.querySelector(`#player_${animation.winner_id} .player-stack`);
     
-    // Update winner's stack
-    updatePlayerStack(animation.winner_id, player.stack);
+    // Highlight winning cards if at showdown
+    if (animation.hand_name && gameState.phase === 'SHOWDOWN') {
+        highlightWinningCards(animation.winner_id);
+    }
+    
+    // Animate pot moving to winner
+    const potRect = potAmount.getBoundingClientRect();
+    const playerRect = playerStack.getBoundingClientRect();
+    
+    // Create animated pot amount
+    const animatedPot = document.createElement('div');
+    animatedPot.className = 'animated-pot';
+    animatedPot.textContent = `+$${animation.amount}`;
+    animatedPot.style.cssText = `
+        position: fixed;
+        left: ${potRect.left}px;
+        top: ${potRect.top}px;
+        color: #FFD700;
+        font-size: 1.5rem;
+        font-weight: bold;
+        z-index: 1000;
+        text-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
+    `;
+    document.body.appendChild(animatedPot);
+    
+    // Animate to player
+    setTimeout(() => {
+        animatedPot.style.transition = 'all 0.8s cubic-bezier(0.4, 0, 0.2, 1)';
+        animatedPot.style.left = playerRect.left + 'px';
+        animatedPot.style.top = playerRect.top + 'px';
+        animatedPot.style.transform = 'scale(1.2)';
+    }, 50);
+    
+    // Update winner's stack with animation
+    setTimeout(() => {
+        updatePlayerStack(animation.winner_id, player.stack);
+        playerStack.classList.add('stack-increase');
+        setTimeout(() => playerStack.classList.remove('stack-increase'), 600);
+    }, 800);
+    
+    // Remove animated pot
+    setTimeout(() => {
+        animatedPot.remove();
+    }, 900);
     
     // Show win message with hand name if available
     let message;
@@ -864,18 +997,36 @@ async function animateAwardPot(animation) {
     }
     showPlayerAction(animation.winner_id, message);
     
-    // Clear all chip stacks from the table
+    // Clear all chip stacks with fade animation
     document.querySelectorAll('.chip-stack').forEach(chips => {
-        chips.innerHTML = '';
+        chips.querySelectorAll('.poker-chip').forEach(chip => {
+            chip.style.transition = 'opacity 0.5s ease';
+            chip.style.opacity = '0';
+        });
+        setTimeout(() => chips.innerHTML = '', 500);
     });
     
     // Reset pot display
     potAmount.textContent = '$0';
     
-    // Note: We intentionally keep bet displays visible until next betting round
-    
     playSound('win');
-    await sleep(1000);
+    await sleep(1500);
+}
+
+// Highlight winning cards
+function highlightWinningCards(winnerId) {
+    const winnerCards = document.getElementById(`cards_${winnerId}`);
+    if (winnerCards) {
+        winnerCards.querySelectorAll('.hole-card').forEach(card => {
+            card.classList.add('winning-card');
+        });
+        
+        // Also highlight relevant board cards if possible
+        // This would require knowing which cards made the hand
+        document.querySelectorAll('.board-card').forEach(card => {
+            card.classList.add('winning-board-card');
+        });
+    }
 }
 
 // Animate celebration
@@ -1117,6 +1268,9 @@ function updateUI() {
         // Update active player highlight
         updateActivePlayer();
         
+        // Update hand strength indicator
+        updateHandStrength();
+        
         // Check if it's AI's turn and trigger action
         if (gameState.action_on >= 0 && gameState.action_on < gameState.players.length) {
             const activePlayer = gameState.players[gameState.action_on];
@@ -1147,17 +1301,27 @@ function updateUI() {
         // Check if hand is over
         if (gameState.phase === 'GAME_OVER') {
             console.log('Hand is over - checking if game continues...');
+            
+            // CRITICAL: Don't process game over until ALL animations are complete!
+            if (isAnimating || animationQueue.length > 0) {
+                console.log('Animations still playing - waiting to process game over');
+                console.log(`isAnimating: ${isAnimating}, queue length: ${animationQueue.length}`);
+                // Check again after animations complete
+                setTimeout(() => updateUI(), 1000);
+                return;
+            }
+            
             // Count players with chips to determine if game is truly over
             const playersWithChips = gameState.players.filter(p => p.stack > 0).length;
             
             if (playersWithChips <= 1) {
                 console.log('Game is truly over - only one player has chips');
-                // Trigger startNewHand which will detect game over and show the screen
+                // Add extra delay to ensure all animations are visible
                 setTimeout(() => {
                     startNewHand();
-                }, 2000);
+                }, 3000);
             } else {
-                console.log('Hand is over but game continues - starting new hand in 5 seconds');
+                console.log('Hand is over but game continues - starting new hand');
                 // Multiple players still have chips, continue the game
                 setTimeout(() => {
                     animationQueue = [];
@@ -1189,6 +1353,7 @@ function updateBettingControls() {
     }
     
     controls.classList.add('active');
+    playSound('turn', Math.random());
     
     // Re-enable controls when it's hero's turn
     enableBettingControls();
@@ -1200,12 +1365,12 @@ function updateBettingControls() {
     const raiseBtn = document.getElementById('raiseBtn');
     const betSlider = document.getElementById('betSlider');
     const betAmount = document.getElementById('betAmount');
+    const allInBtn = document.querySelector('.bet-button.all-in');
     
     const toCall = gameState.current_bet - hero.current_bet;
     
     // Check/Call logic with blind rules
     const isBigBlind = hero.is_big_blind;
-    const isSmallBlind = hero.is_small_blind;
     const isPreFlop = gameState.phase === 'PRE_FLOP';
     
     if (isPreFlop && isBigBlind && gameState.current_bet === gameState.big_blind) {
@@ -1220,7 +1385,17 @@ function updateBettingControls() {
         // Must call or fold
         checkBtn.style.display = 'none';
         callBtn.style.display = 'block';
-        callAmount.textContent = Math.min(toCall, hero.stack);
+        const callAmountValue = Math.min(toCall, hero.stack);
+        callAmount.textContent = callAmountValue;
+        
+        // If call would be all-in, highlight the button
+        if (callAmountValue === hero.stack) {
+            callBtn.classList.add('will-be-all-in');
+            callBtn.innerHTML = `ALL IN $<span id="callAmount">${callAmountValue}</span>`;
+        } else {
+            callBtn.classList.remove('will-be-all-in');
+            callBtn.innerHTML = `CALL $<span id="callAmount">${callAmountValue}</span>`;
+        }
     }
     
     // Raise logic
@@ -1230,19 +1405,42 @@ function updateBettingControls() {
     if (maxRaise <= 0) {
         raiseBtn.disabled = true;
         betSlider.disabled = true;
+        allInBtn.disabled = toCall >= hero.stack; // Disable all-in if we can't even call
     } else {
         raiseBtn.disabled = false;
         betSlider.disabled = false;
+        allInBtn.disabled = false;
         betSlider.min = minRaise;
         betSlider.max = maxRaise;
         betSlider.value = Math.min(minRaise * 2, maxRaise);
         betAmount.textContent = betSlider.value;
+        
+        // Update raise button if slider is at max
+        updateRaiseButtonState();
+    }
+}
+
+// Update raise button based on slider value
+function updateRaiseButtonState() {
+    const hero = gameState.players.find(p => !p.is_ai);
+    const betSlider = document.getElementById('betSlider');
+    const raiseBtn = document.getElementById('raiseBtn');
+    const toCall = gameState.current_bet - hero.current_bet;
+    const maxRaise = hero.stack - toCall;
+    
+    if (parseInt(betSlider.value) === maxRaise) {
+        raiseBtn.classList.add('will-be-all-in');
+        raiseBtn.textContent = 'ALL IN';
+    } else {
+        raiseBtn.classList.remove('will-be-all-in');
+        raiseBtn.textContent = 'RAISE';
     }
 }
 
 // Update bet amount display
 document.getElementById('betSlider')?.addEventListener('input', (e) => {
     document.getElementById('betAmount').textContent = e.target.value;
+    updateRaiseButtonState();
 });
 
 
@@ -1282,19 +1480,196 @@ function clearAllBetDisplays() {
 
 // Update active player highlight
 function updateActivePlayer() {
-    // Remove all active classes
+    // Remove all active classes and timers
     document.querySelectorAll('.player-info').forEach(el => {
         el.classList.remove('active');
+    });
+    document.querySelectorAll('.action-timer').forEach(timer => {
+        timer.style.display = 'none';
     });
     
     // Add active class to current player
     if (gameState.action_on >= 0) {
         const activePlayer = gameState.players[gameState.action_on];
         const playerInfo = document.getElementById(`player_${activePlayer.id}`);
+        const timer = document.getElementById(`timer_${activePlayer.id}`);
+        
         if (playerInfo) {
             playerInfo.classList.add('active');
+            
+            // Show timer for active player
+            if (timer && !activePlayer.is_ai) {
+                timer.style.display = 'block';
+                startActionTimer(activePlayer.id);
+            }
         }
     }
+}
+
+// Start action timer countdown
+function startActionTimer(playerId) {
+    const timer = document.getElementById(`timer_${playerId}`);
+    if (!timer) return;
+    
+    const timerPath = timer.querySelector('.timer-path');
+    const timerText = timer.querySelector('.timer-text');
+    
+    let timeRemaining = 30;
+    const circumference = 2 * Math.PI * 35; // radius is 35
+    
+    const interval = setInterval(() => {
+        timeRemaining--;
+        timerText.textContent = timeRemaining;
+        
+        // Update timer ring
+        const offset = circumference - (timeRemaining / 30) * circumference;
+        timerPath.style.strokeDashoffset = offset;
+        
+        // Change color based on time remaining
+        if (timeRemaining <= 5) {
+            timerPath.classList.add('danger');
+            timerPath.classList.remove('warning');
+        } else if (timeRemaining <= 10) {
+            timerPath.classList.add('warning');
+        }
+        
+        if (timeRemaining <= 0) {
+            clearInterval(interval);
+            // Auto-fold if time runs out
+            if (!gameState.players.find(p => p.id === playerId).is_ai) {
+                playerAction('fold');
+            }
+        }
+        
+        // Clear timer if it's no longer this player's turn
+        const activePlayer = gameState.players[gameState.action_on];
+        if (!activePlayer || activePlayer.id !== playerId) {
+            clearInterval(interval);
+            timer.style.display = 'none';
+        }
+    }, 1000);
+}
+
+// Update hand strength indicator
+async function updateHandStrength() {
+    const hero = gameState?.players?.find(p => !p.is_ai);
+    const container = document.getElementById('handStrengthContainer');
+    
+    if (!hero || !hero.hole_cards || hero.hole_cards.length !== 2 || !gameId) {
+        container.style.display = 'none';
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/game/${gameId}/hand-strength/${hero.id}`);
+        const data = await response.json();
+        
+        if (data.success && data.has_cards) {
+            // Show container with fade-in animation
+            if (container.style.display === 'none') {
+                container.style.display = 'block';
+                container.style.opacity = '0';
+                setTimeout(() => {
+                    container.style.transition = 'opacity 0.3s ease';
+                    container.style.opacity = '1';
+                }, 10);
+            }
+            
+            // Update win probability with animation
+            const winProb = Math.round(data.win_probability * 100);
+            const tieProb = Math.round(data.tie_probability * 100);
+            
+            // Animate number changes
+            animateNumber('winProb', winProb);
+            animateNumber('tieProb', tieProb);
+            animateNumber('strengthPercentage', winProb);
+            
+            // Update strength bar with smooth transition
+            const strengthBar = document.getElementById('strengthBar');
+            const currentWidth = parseFloat(strengthBar.style.width) || 0;
+            strengthBar.style.width = winProb + '%';
+            
+            // Add pulse animation if strength changed significantly
+            if (Math.abs(currentWidth - winProb) > 20) {
+                strengthBar.classList.add('pulse');
+                setTimeout(() => strengthBar.classList.remove('pulse'), 600);
+            }
+            
+            // Update current hand name with highlight effect
+            const handNameEl = document.getElementById('currentHandName');
+            const previousHand = handNameEl.textContent;
+            if (data.current_hand) {
+                handNameEl.textContent = data.current_hand;
+                handNameEl.style.display = 'inline';
+                
+                // Highlight if hand improved
+                if (previousHand && previousHand !== data.current_hand) {
+                    handNameEl.classList.add('hand-improved');
+                    setTimeout(() => handNameEl.classList.remove('hand-improved'), 1000);
+                }
+            } else {
+                handNameEl.style.display = 'none';
+            }
+            
+            // Update pot odds if facing a bet
+            const potOddsInfo = document.getElementById('potOddsInfo');
+            if (data.to_call > 0) {
+                potOddsInfo.style.display = 'block';
+                document.getElementById('toCallAmount').textContent = data.to_call;
+                document.getElementById('potSizeDisplay').textContent = data.pot_size;
+                document.getElementById('oddsNeeded').textContent = data.pot_odds_percentage + '%';
+                
+                // Update odds result with animation
+                const oddsResult = document.getElementById('oddsResult');
+                const wasGood = oddsResult.classList.contains('good');
+                if (data.has_direct_odds) {
+                    oddsResult.textContent = 'CALL +EV';
+                    oddsResult.className = 'odds-result good';
+                    if (!wasGood) {
+                        oddsResult.classList.add('flash-good');
+                        setTimeout(() => oddsResult.classList.remove('flash-good'), 600);
+                    }
+                } else {
+                    oddsResult.textContent = 'FOLD';
+                    oddsResult.className = 'odds-result bad';
+                    if (wasGood) {
+                        oddsResult.classList.add('flash-bad');
+                        setTimeout(() => oddsResult.classList.remove('flash-bad'), 600);
+                    }
+                }
+            } else {
+                potOddsInfo.style.display = 'none';
+            }
+        } else {
+            container.style.display = 'none';
+        }
+    } catch (error) {
+        console.error('Error fetching hand strength:', error);
+        container.style.display = 'none';
+    }
+}
+
+// Helper function to animate number changes
+function animateNumber(elementId, targetValue) {
+    const element = document.getElementById(elementId);
+    const currentValue = parseInt(element.textContent) || 0;
+    const difference = targetValue - currentValue;
+    const duration = 300; // ms
+    const steps = 20;
+    const stepValue = difference / steps;
+    const stepDuration = duration / steps;
+    
+    let step = 0;
+    const interval = setInterval(() => {
+        step++;
+        const newValue = Math.round(currentValue + (stepValue * step));
+        element.textContent = newValue + '%';
+        
+        if (step >= steps) {
+            element.textContent = targetValue + '%';
+            clearInterval(interval);
+        }
+    }, stepDuration);
 }
 
 // Track if we're processing an action
@@ -1504,23 +1879,33 @@ function leaveGame() {
 function showGameOverScreen(winnerId, message) {
     console.log('Showing game over screen');
     
-    // Create game over overlay with fade-in animation
-    const overlay = document.createElement('div');
-    overlay.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.9);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        z-index: 10000;
-        opacity: 0;
-        transition: opacity 1s ease-in;
-    `;
+    // Wait a bit to ensure all animations have completed
+    setTimeout(() => {
+        // Create game over overlay with fade-in animation
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9000;  /* Much lower than bug report button (99999) */
+            opacity: 0;
+            transition: opacity 1s ease-in;
+        `;
+        
+        // Force bug report button to stay on top
+        const bugReportBtn = document.getElementById('bugReportBtn');
+        if (bugReportBtn) {
+            // Temporarily boost z-index even higher
+            bugReportBtn.style.zIndex = '999999';
+            bugReportBtn.style.position = 'fixed';  // Ensure it's fixed positioned
+        }
     
     // Trigger fade-in after adding to DOM
     setTimeout(() => {
@@ -1535,6 +1920,7 @@ function showGameOverScreen(winnerId, message) {
         padding: 3rem;
         text-align: center;
         box-shadow: 0 0 50px rgba(255, 215, 0, 0.5);
+        position: relative;
     `;
     
     const title = document.createElement('h1');
@@ -1603,11 +1989,12 @@ function showGameOverScreen(winnerId, message) {
     overlay.appendChild(content);
     document.body.appendChild(overlay);
     
-    // Create celebration if player won
-    if (winnerId === 'hero') {
-        createConfetti();
-        playSound('win');
-    }
+        // Create celebration if player won
+        if (winnerId === 'hero') {
+            createConfetti();
+            playSound('win');
+        }
+    }, 1000); // Add 1 second delay before showing game over screen
 }
 
 // (Bug report functions moved to top of file)

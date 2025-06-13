@@ -1,6 +1,7 @@
 """
 Cache manager for preloading poker calculations at startup.
 Works with CachedPokerCalculator to warm the cache.
+Now leverages poker_knightNG's GPU keep-alive for efficient warming.
 """
 
 import asyncio
@@ -58,10 +59,10 @@ class CacheManager:
         self._recent_cache_times = []  # List of (timestamp, count) tuples
         self._last_count = 0
         
-        # Create a separate thread pool for cache warming with lower priority
-        # Use only 2 threads to avoid overwhelming the system
+        # Create a separate thread pool for cache warming
+        # Can use more threads now with GPU keep-alive efficiency
         self._cache_executor = ThreadPoolExecutor(
-            max_workers=2,
+            max_workers=4,  # Increased from 2 to 4 for faster warming
             thread_name_prefix="cache_warmer"
         )
     
@@ -112,16 +113,47 @@ class CacheManager:
             # Check if this was a cache hit using the new cache system
             was_cached = result.get('from_cache', False)
             
-            if not was_cached:
-                # This was a new calculation, increment counters
+            # Also check if it was a cold start (ignore cold starts for performance metrics)
+            is_cold_start = result.get('_is_cold_start', False)
+            
+            if not was_cached and not is_cold_start:
+                # This was a new calculation (not from cache, not cold start)
                 self.cache_stats['preflop_cached'] += 1
                 self.cache_stats['new_cached'] += 1
                 self.cache_stats['warming_this_session'] += 1
+            elif not was_cached and is_cold_start:
+                # Cold start - still count it but note it separately
+                self.cache_stats['preflop_cached'] += 1
+                self.cache_stats['new_cached'] += 1
+                self.cache_stats['warming_this_session'] += 1
+                logger.debug(f"Cold start for {hand} vs {opponents}")
             # If it was already cached, we don't increment the total count
                 
         except Exception as e:
             logger.warning(f"Failed to cache {hand} vs {opponents}: {e}")
             self.cache_stats['errors'] += 1
+    
+    async def _cache_batch_scenarios(self, problems):
+        """Cache a batch of scenarios using batch API for efficiency."""
+        try:
+            loop = asyncio.get_event_loop()
+            results = await loop.run_in_executor(
+                self._cache_executor, 
+                self.calculator.calculate_batch, 
+                problems
+            )
+            
+            # Count successful new calculations
+            for result in results:
+                if result and not result.get('from_cache', False):
+                    if not result.get('_is_cold_start', False):
+                        self.cache_stats['preflop_cached'] += 1
+                        self.cache_stats['new_cached'] += 1
+                        self.cache_stats['warming_this_session'] += 1
+                        
+        except Exception as e:
+            logger.warning(f"Failed to cache batch: {e}")
+            self.cache_stats['errors'] += len(problems)
     
     async def preload_all_preflop(self) -> None:
         """Preload all preflop scenarios in the background."""
@@ -131,8 +163,9 @@ class CacheManager:
         
         all_hands = self.generate_all_hands()
         
-        # Process hands in very small chunks with async execution
-        chunk_size = 3  # Very small chunks
+        # Process hands in moderate chunks to leverage GPU keep-alive
+        # Larger chunks now that we have GPU warmth
+        chunk_size = 10  # Increased chunk size
         for i in range(0, len(all_hands), chunk_size):
             chunk = all_hands[i:i + chunk_size]
             
@@ -151,8 +184,8 @@ class CacheManager:
             if tasks:
                 await asyncio.gather(*tasks, return_exceptions=True)
             
-            # Much longer sleep to ensure user requests get priority
-            await asyncio.sleep(1.0)
+            # Shorter sleep now that GPU is warm (calculations are faster)
+            await asyncio.sleep(0.2)
             
             # Progress update every 500 calculations
             if self.cache_stats['preflop_cached'] % 500 == 0:
@@ -242,6 +275,17 @@ class CacheManager:
         total_hands = len(self.generate_all_hands())  # 1326 unique hands
         total_preflop_scenarios = total_hands * 6  # 6 opponent counts (1-6)
         self.cache_stats['total_expected'] = total_preflop_scenarios
+        
+        # Log GPU status
+        try:
+            if hasattr(self.calculator, 'get_server_statistics'):
+                server_stats = self.calculator.get_server_statistics()
+                if server_stats.get('is_gpu_warm'):
+                    logger.info("🔥 GPU is already warm, cache warming will be faster")
+                else:
+                    logger.info("❄️ GPU is cold, first calculations will be slower")
+        except Exception:
+            pass  # Server stats not available, continue anyway
         
         # Try to get actual cache size from our new cache system
         try:

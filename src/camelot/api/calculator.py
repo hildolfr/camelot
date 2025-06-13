@@ -1,11 +1,14 @@
 """Calculator API endpoints."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from typing import Dict, Optional
+import time
+import uuid
 
 from ..core.cache_init import get_cached_calculator, get_cache_manager
-from .models import CalculateRequest, CalculateResponse, HealthResponse
+from .models import CalculateRequest, CalculateResponse, HealthResponse, BatchCalculateRequest, BatchCalculateResponse
 from ..core.cache_storage import CacheStorage
+from ..core.calculator_logger import calculator_logger
 import os
 import glob
 from pathlib import Path
@@ -21,37 +24,64 @@ cache_manager: Optional['CacheManager'] = None
 async def health_check() -> Dict:
     """Check if the API is healthy and poker_knight is available."""
     try:
-        # Try a simple calculation to verify poker_knight works
+        # Try a simple calculation to verify poker_knightNG works
         test_result = calculator.calculate_no_cache(["A♠", "K♠"], 1)
         poker_available = True
+        
+        # Get GPU server status
+        gpu_status = None
+        try:
+            gpu_status = calculator.health_check()
+        except:
+            pass
     except:
         poker_available = False
+        gpu_status = None
     
     return {
         "status": "healthy",
         "version": "0.0.1",
-        "poker_knight_available": poker_available
+        "poker_knight_available": poker_available,
+        "gpu_status": gpu_status
     }
 
 
 @router.post("/calculate", response_model=CalculateResponse)
-async def calculate_poker_odds(request: CalculateRequest) -> Dict:
+async def calculate_poker_odds(calc_request: CalculateRequest, request: Request) -> Dict:
     """
     Calculate poker hand probabilities.
     
     This endpoint accepts hero's hole cards, number of opponents, and optional board cards,
     then returns win/tie/loss probabilities along with detailed statistics.
     """
+    # Get session ID from cookies or create new one
+    session_id = request.cookies.get("session_id")
+    if not session_id:
+        session_id = str(uuid.uuid4())
+    
+    # Get client IP
+    client_ip = request.client.host if request.client else "unknown"
+    
+    # Track timing
+    start_time = time.time()
+    
     try:
-        # Call calculate method directly
+        # Call calculate method with all new parameters
         result = calculator.calculate(
-            request.hero_hand,
-            request.num_opponents,
-            request.board_cards,
-            request.simulation_mode,
-            request.hero_position,
-            request.stack_sizes,
-            request.pot_size
+            calc_request.hero_hand,
+            calc_request.num_opponents,
+            calc_request.board_cards,
+            calc_request.simulation_mode,
+            calc_request.hero_position,
+            calc_request.stack_sizes,
+            calc_request.pot_size,
+            calc_request.tournament_context,
+            calc_request.action_to_hero,
+            calc_request.bet_size,
+            calc_request.street,
+            calc_request.players_to_act,
+            calc_request.tournament_stage,
+            calc_request.blind_level
         )
         
         
@@ -77,17 +107,56 @@ async def calculate_poker_odds(request: CalculateRequest) -> Dict:
         logger.info(f"API Response - hand_categories: {response_data['hand_categories']}")
         logger.info(f"API Response - hand_categories type: {type(response_data['hand_categories'])}")
         
-        # Add any advanced features if present
-        for key in ["position_aware_equity", "icm_equity", "multi_way_statistics", 
-                    "defense_frequencies", "coordination_effects", "stack_to_pot_ratio",
-                    "tournament_pressure", "fold_equity_estimates", "bubble_factor",
-                    "bluff_catching_frequency", "from_cache", "cache_time_ms", "calculation_time_ms"]:
+        # Add all advanced features including new poker_knightNG fields
+        advanced_keys = [
+            "position_aware_equity", "icm_equity", "multi_way_statistics", 
+            "defense_frequencies", "coordination_effects", "stack_to_pot_ratio",
+            "tournament_pressure", "fold_equity_estimates", "bubble_factor",
+            "bluff_catching_frequency", "range_coordination_score",
+            # New poker_knightNG fields
+            "spr", "pot_odds", "mdf", "equity_needed", "commitment_threshold",
+            "nuts_possible", "draw_combinations", "board_texture_score",
+            "equity_vs_range_percentiles", "positional_advantage_score",
+            "hand_vulnerability",
+            # Cache metadata
+            "from_cache", "cache_time_ms", "calculation_time_ms"
+        ]
+        
+        for key in advanced_keys:
             if key in result:
                 response_data[key] = result[key]
+        
+        # Calculate total execution time
+        execution_time_ms = (time.time() - start_time) * 1000
+        
+        # Log the request
+        calculator_logger.log_request(
+            session_id=session_id,
+            user_ip=client_ip,
+            request_data=calc_request.dict(),
+            response_data=response_data,
+            execution_time_ms=execution_time_ms,
+            cache_hit=result.get("from_cache", False),
+            error=None
+        )
         
         return response_data
         
     except ValueError as e:
+        # Calculate execution time
+        execution_time_ms = (time.time() - start_time) * 1000
+        
+        # Log the error
+        calculator_logger.log_request(
+            session_id=session_id,
+            user_ip=client_ip,
+            request_data=calc_request.dict(),
+            response_data={},
+            execution_time_ms=execution_time_ms,
+            cache_hit=False,
+            error=str(e)
+        )
+        
         # Return error response for validation errors
         return {
             "success": False,
@@ -98,15 +167,151 @@ async def calculate_poker_odds(request: CalculateRequest) -> Dict:
             "execution_time_ms": None,
             "confidence_interval": None,
             "hand_categories": None,
-            "hero_hand": request.hero_hand,
-            "board_cards": request.board_cards or [],
-            "num_opponents": request.num_opponents,
+            "hero_hand": calc_request.hero_hand,
+            "board_cards": calc_request.board_cards or [],
+            "num_opponents": calc_request.num_opponents,
             "error": str(e)
         }
         
     except Exception as e:
+        # Calculate execution time
+        execution_time_ms = (time.time() - start_time) * 1000
+        
+        # Log the error
+        calculator_logger.log_request(
+            session_id=session_id,
+            user_ip=client_ip,
+            request_data=calc_request.dict(),
+            response_data={},
+            execution_time_ms=execution_time_ms,
+            cache_hit=False,
+            error=str(e)
+        )
+        
         # Unexpected errors
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+@router.post("/calculate-batch", response_model=BatchCalculateResponse)
+async def calculate_batch(batch_request: BatchCalculateRequest, request: Request) -> Dict:
+    """
+    Calculate multiple poker hands in batch for efficiency.
+    
+    This endpoint leverages poker_knightNG's batch processing capability
+    to solve multiple problems efficiently with GPU keep-alive.
+    """
+    # Get session ID and client IP
+    session_id = request.cookies.get("session_id", str(uuid.uuid4()))
+    client_ip = request.client.host if request.client else "unknown"
+    
+    try:
+        # Convert CalculateRequest objects to dicts for batch processing
+        problems = []
+        for req in batch_request.problems:
+            problem = {
+                "hero_hand": req.hero_hand,
+                "num_opponents": req.num_opponents
+            }
+            
+            # Add optional parameters if present
+            if req.board_cards:
+                problem["board_cards"] = req.board_cards
+            if req.simulation_mode != "default":
+                problem["simulation_mode"] = req.simulation_mode
+            if req.hero_position:
+                problem["hero_position"] = req.hero_position
+            if req.stack_sizes:
+                problem["stack_sizes"] = req.stack_sizes
+            if req.pot_size:
+                problem["pot_size"] = req.pot_size
+            if req.tournament_context:
+                problem["tournament_context"] = req.tournament_context
+            if req.action_to_hero:
+                problem["action_to_hero"] = req.action_to_hero
+            if req.bet_size is not None:
+                problem["bet_size"] = req.bet_size
+            if req.street:
+                problem["street"] = req.street
+            if req.players_to_act is not None:
+                problem["players_to_act"] = req.players_to_act
+            if req.tournament_stage:
+                problem["tournament_stage"] = req.tournament_stage
+            if req.blind_level is not None:
+                problem["blind_level"] = req.blind_level
+                
+            problems.append(problem)
+        
+        # Use batch calculation
+        import time
+        start_time = time.time()
+        results = calculator.calculate_batch(problems)
+        total_time = (time.time() - start_time) * 1000  # Convert to ms
+        
+        # Convert results to CalculateResponse format
+        responses = []
+        successful = 0
+        
+        for i, result in enumerate(results):
+            if result is None:
+                # Failed calculation
+                responses.append(None)
+            else:
+                # Build response data
+                response_data = {
+                    "success": True,
+                    "win_probability": result.get("win_probability"),
+                    "tie_probability": result.get("tie_probability"),
+                    "loss_probability": result.get("loss_probability"),
+                    "simulations_run": result.get("simulations_run"),
+                    "execution_time_ms": result.get("execution_time_ms"),
+                    "confidence_interval": result.get("confidence_interval"),
+                    "hand_categories": result.get("hand_categories"),
+                    "hero_hand": result.get("hero_hand"),
+                    "board_cards": result.get("board_cards"),
+                    "num_opponents": result.get("num_opponents"),
+                    "error": None
+                }
+                
+                # Add all advanced features
+                advanced_keys = [
+                    "position_aware_equity", "icm_equity", "multi_way_statistics", 
+                    "defense_frequencies", "coordination_effects", "stack_to_pot_ratio",
+                    "tournament_pressure", "fold_equity_estimates", "bubble_factor",
+                    "bluff_catching_frequency", "range_coordination_score",
+                    "spr", "pot_odds", "mdf", "equity_needed", "commitment_threshold",
+                    "nuts_possible", "draw_combinations", "board_texture_score",
+                    "equity_vs_range_percentiles", "positional_advantage_score",
+                    "hand_vulnerability", "from_cache", "cache_time_ms", "calculation_time_ms"
+                ]
+                
+                for key in advanced_keys:
+                    if key in result:
+                        response_data[key] = result[key]
+                
+                responses.append(response_data)
+                successful += 1
+        
+        # Log the batch request
+        calculator_logger.log_batch_request(
+            session_id=session_id,
+            user_ip=client_ip,
+            problem_count=len(problems),
+            successful_count=successful,
+            total_time_ms=total_time
+        )
+        
+        return {
+            "success": True,
+            "results": responses,
+            "total_problems": len(problems),
+            "successful_calculations": successful,
+            "total_execution_time_ms": total_time,
+            "average_execution_time_ms": total_time / len(problems) if problems else 0
+        }
+        
+    except Exception as e:
+        # Return error response
+        raise HTTPException(status_code=500, detail=f"Batch calculation failed: {str(e)}")
 
 
 @router.get("/cache-status")
@@ -493,7 +698,9 @@ async def list_log_files() -> Dict:
                     "path": str(log_file),
                     "size_mb": round(stats.st_size / (1024 * 1024), 2),
                     "modified": datetime.fromtimestamp(stats.st_mtime).isoformat(),
-                    "type": "bug_report" if "bug_report" in log_file.name else "game"
+                    "type": "bug_report" if "bug_report" in log_file.name else (
+                        "calculator" if "calculator_requests" in log_file.name else "game"
+                    )
                 })
         
         # Sort by modified time, newest first
@@ -502,12 +709,14 @@ async def list_log_files() -> Dict:
         # Group by type
         game_logs = [f for f in log_files if f["type"] == "game"]
         bug_logs = [f for f in log_files if f["type"] == "bug_report"]
+        calc_logs = [f for f in log_files if f["type"] == "calculator"]
         
         return {
             "status": "success",
             "logs": {
                 "game": game_logs,
                 "bug_reports": bug_logs,
+                "calculator": calc_logs,
                 "total_count": len(log_files),
                 "total_size_mb": round(sum(f["size_mb"] for f in log_files), 2)
             }
@@ -716,6 +925,46 @@ async def download_log(filename: str):
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/gpu-server-status")
+async def get_gpu_server_status() -> Dict:
+    """Get GPU server statistics and health information."""
+    try:
+        stats = calculator.get_server_statistics()
+        health = calculator.health_check()
+        
+        return {
+            "status": "success",
+            "health": health,
+            "statistics": stats
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "health": {"status": "unknown"},
+            "statistics": {}
+        }
+
+
+@router.get("/calculator-logs")
+async def get_calculator_logs(lines: int = 100) -> Dict:
+    """Get recent calculator request logs."""
+    try:
+        logs = calculator_logger.get_recent_logs(lines)
+        return {
+            "status": "success",
+            "logs": logs,
+            "count": len(logs)
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "logs": []
+        }
 
 
 @router.get("/system-status")
