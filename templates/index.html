@@ -2696,5 +2696,17 @@
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="/static/js/app.js"></script>
+    <script>
+        // Check if we should show poker section
+        {% if show_poker %}
+        document.addEventListener('DOMContentLoaded', function() {
+            // Switch to poker tab
+            const playTab = document.querySelector('.nav-link[href="/game"]');
+            if (playTab) {
+                playTab.click();
+            }
+        });
+        {% endif %}
+    </script>
 </body>
 </html>

@@ -19,7 +19,11 @@
   - Removed overlay completely, now shows only centered modal
   - Bug report button remains fully accessible during game over
 - Fixed broken "Play Again" button link
-  - Now correctly redirects to /poker instead of /game/lobby
+  - Added /poker route that shows lobby on home page
+  - Now correctly redirects to poker lobby section
+- Fixed bug report modal being obscured by game over screen
+  - Moved bug report modal to bottom center of screen
+  - Reduced game over modal z-index to stay below bug report
 - Implemented visual pot representation with chip animations
   - Chips now animate from players to central pot when betting
   - Pot chips visually accumulate in center of table

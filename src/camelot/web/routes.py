@@ -47,6 +47,16 @@ async def poker_game(request: Request):
     )
 
 
+@router.get("/poker", response_class=HTMLResponse)
+async def poker_lobby(request: Request):
+    """Redirect to home page with poker lobby section active."""
+    response = templates.TemplateResponse(
+        "index.html",
+        {"request": request, "title": "Camelot Poker Calculator", "show_poker": True}
+    )
+    return response
+
+
 @router.get("/system", response_class=HTMLResponse)
 async def system_testing(request: Request):
     """Render the system and testing utilities page."""

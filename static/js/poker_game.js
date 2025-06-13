@@ -2013,7 +2013,7 @@ function showGameOverScreen(winnerId, message) {
             padding: 3rem;
             text-align: center;
             box-shadow: 0 0 50px rgba(255, 215, 0, 0.5);
-            z-index: 1000;
+            z-index: 900;
             opacity: 0;
             transition: all 0.5s ease;
             min-width: 400px;
