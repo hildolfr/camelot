@@ -427,37 +427,8 @@ async function startNewHand() {
                 const delay = data.winner === 'hero' ? 8000 : 5000;
                 console.log(`Showing game over screen in ${delay/1000} seconds...`);
                 
-                // Show a subtle countdown message
-                const countdownMsg = document.createElement('div');
-                countdownMsg.style.cssText = `
-                    position: fixed;
-                    top: 50%;
-                    left: 50%;
-                    transform: translate(-50%, -50%);
-                    background: rgba(0, 0, 0, 0.8);
-                    color: #FFD700;
-                    padding: 1rem 2rem;
-                    border-radius: 10px;
-                    font-size: 1.2rem;
-                    font-weight: bold;
-                    z-index: 1000;
-                    opacity: 0;
-                    transition: opacity 0.5s ease-in;
-                `;
-                countdownMsg.textContent = data.winner === 'hero' ? 
-                    'Congratulations! Victory is yours!' : 
-                    'Game Over';
-                document.body.appendChild(countdownMsg);
-                
-                // Fade in the message after 2 seconds
+                // Just show the game over screen after delay
                 setTimeout(() => {
-                    countdownMsg.style.opacity = '1';
-                }, 2000);
-                
-                setTimeout(() => {
-                    if (countdownMsg.parentNode) {
-                        countdownMsg.remove();
-                    }
                     showGameOverScreen(data.winner, data.message);
                 }, delay);
                 return;
@@ -1895,31 +1866,23 @@ function showGameOverScreen(winnerId, message) {
     
     // Wait a bit to ensure all animations have completed
     setTimeout(() => {
-        // Create game over overlay with fade-in animation
+        // Create game over overlay that doesn't cover the bug report button
         const overlay = document.createElement('div');
         overlay.style.cssText = `
             position: fixed;
             top: 0;
             left: 0;
-            right: 0;
+            right: 120px;  /* Leave space for bug report button */
             bottom: 0;
             background: rgba(0, 0, 0, 0.9);
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            z-index: 9000;  /* Much lower than bug report button (99999) */
+            z-index: 8000;  /* Below bug report button */
             opacity: 0;
             transition: opacity 1s ease-in;
         `;
-        
-        // Force bug report button to stay on top
-        const bugReportBtn = document.getElementById('bugReportBtn');
-        if (bugReportBtn) {
-            // Temporarily boost z-index even higher
-            bugReportBtn.style.zIndex = '999999';
-            bugReportBtn.style.position = 'fixed';  // Ensure it's fixed positioned
-        }
     
     // Trigger fade-in after adding to DOM
     setTimeout(() => {
@@ -1975,7 +1938,7 @@ function showGameOverScreen(winnerId, message) {
         transition: all 0.3s ease;
     `;
     playAgainBtn.onclick = () => {
-        window.location.href = '/game/lobby';
+        window.location.href = '/poker';  // Correct path to poker lobby
     };
     
     const mainMenuBtn = document.createElement('button');

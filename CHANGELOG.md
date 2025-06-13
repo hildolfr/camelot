@@ -9,7 +9,17 @@
   - Shows most recent hands first with winner information
   - API endpoint `/api/game/{game_id}/hand-history`
 
+### Changed
+- Removed redundant "Victory is yours" modal before game over screen
+  - Players already see elimination messages, making this redundant
+  - Reduces UI clutter and speeds up game flow
+
 ### Fixed
+- Fixed game over screen blocking bug report button
+  - Overlay now leaves space on the right for bug report button
+  - Reduced z-index to ensure button remains accessible
+- Fixed broken "Play Again" button link
+  - Now correctly redirects to /poker instead of /game/lobby
 - Fixed critical double-payment bug when players fold to all-in
   - Winner was receiving uncalled bet refund AND winning a pot with their full bet
   - Now clears all player bets after handling uncalled returns to prevent double-counting
