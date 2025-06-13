@@ -851,10 +851,17 @@ async function animateAwardPot(animation) {
     // Update winner's stack
     updatePlayerStack(animation.winner_id, player.stack);
     
-    // Show win message
-    const message = animation.pot_number 
-        ? `WIN POT ${animation.pot_number}: $${animation.amount}!`
-        : `WIN $${animation.amount}!`;
+    // Show win message with hand name if available
+    let message;
+    if (animation.hand_name) {
+        message = animation.pot_number 
+            ? `WIN POT ${animation.pot_number}: $${animation.amount} with ${animation.hand_name}!`
+            : `WIN $${animation.amount} with ${animation.hand_name}!`;
+    } else {
+        message = animation.pot_number 
+            ? `WIN POT ${animation.pot_number}: $${animation.amount}!`
+            : `WIN $${animation.amount}!`;
+    }
     showPlayerAction(animation.winner_id, message);
     
     // Clear all chip stacks from the table

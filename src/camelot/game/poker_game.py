@@ -12,6 +12,7 @@ import os
 from datetime import datetime
 
 from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
+from ..core.hand_evaluator import evaluate_hand, get_winning_players, HandEvaluation
 
 # Set up file-only logging for poker game
 logger = logging.getLogger(__name__)
@@ -206,6 +207,12 @@ class PokerGame:
                 is_ai=True
             )
             players.append(ai_player)
+        
+        # Validate player count (2-10 players per Texas Hold'em spec)
+        if len(players) < 2:
+            raise ValueError("Poker game requires at least 2 players")
+        if len(players) > 10:
+            raise ValueError("Poker game supports maximum 10 players")
         
         # Randomly assign dealer position
         dealer_position = random.randint(0, len(players) - 1)
@@ -796,37 +803,64 @@ class PokerGame:
                         "delay": i * 500
                     })
             
-            # TODO: Integrate with poker_knight to determine winners for each pot
-            # For now, award each pot to a placeholder winner
+            # Evaluate hands and determine winners for each pot
             delay = len(active_players) * 500 + 1000
+            
+            # Keep track of total winnings for celebration animation
+            player_winnings = {p.id: 0 for p in active_players}
             
             for i, pot in enumerate(self.state.pots):
                 # Get eligible players for this pot
                 eligible_in_pot = [p for p in active_players if p.id in pot.eligible_players]
                 
                 if eligible_in_pot:
-                    # Placeholder: award to first eligible player
-                    winner = eligible_in_pot[0]
-                    winner.stack += pot.amount
+                    # Build hole cards dict for eligible players
+                    hole_cards_dict = {p.id: p.hole_cards for p in eligible_in_pot}
                     
-                    animations.append({
-                        "type": "award_pot",
-                        "winner_id": winner.id,
-                        "amount": pot.amount,
-                        "pot_number": i + 1,
-                        "delay": delay
-                    })
+                    # Get winners using hand evaluator
+                    winner_ids, evaluations = get_winning_players(hole_cards_dict, self.state.board_cards)
                     
-                    logger.info(f"{winner.name} wins pot {i+1} of ${pot.amount}")
+                    # Log hand evaluations
+                    for player_id, hand_eval in evaluations.items():
+                        player = next(p for p in eligible_in_pot if p.id == player_id)
+                        logger.info(f"{player.name} has {hand_eval}")
+                    
+                    # Split pot among winners
+                    split_amount = pot.amount // len(winner_ids)
+                    remainder = pot.amount % len(winner_ids)
+                    
+                    for j, winner_id in enumerate(winner_ids):
+                        winner = next(p for p in eligible_in_pot if p.id == winner_id)
+                        # First winner gets any remainder from integer division
+                        award_amount = split_amount + (remainder if j == 0 else 0)
+                        winner.stack += award_amount
+                        player_winnings[winner_id] += award_amount
+                        
+                        animations.append({
+                            "type": "award_pot",
+                            "winner_id": winner_id,
+                            "amount": award_amount,
+                            "pot_number": i + 1,
+                            "delay": delay,
+                            "hand_name": evaluations[winner_id].name
+                        })
+                        
+                        if len(winner_ids) > 1:
+                            logger.info(f"{winner.name} wins ${award_amount} from pot {i+1} (split pot)")
+                        else:
+                            logger.info(f"{winner.name} wins pot {i+1} of ${award_amount} with {evaluations[winner_id]}")
+                    
                     delay += 1000
             
             # Celebration for biggest winner
-            if self.state.pots:
-                animations.append({
-                    "type": "celebration",
-                    "winner_id": eligible_in_pot[0].id if eligible_in_pot else active_players[0].id,
-                    "delay": delay
-                })
+            if player_winnings:
+                biggest_winner_id = max(player_winnings.items(), key=lambda x: x[1])[0]
+                if player_winnings[biggest_winner_id] > 0:
+                    animations.append({
+                        "type": "celebration",
+                        "winner_id": biggest_winner_id,
+                        "delay": delay
+                    })
         
         self.state.phase = GamePhase.GAME_OVER
         logger.info("Hand complete - phase set to GAME_OVER")
