@@ -439,6 +439,11 @@ class PokerGame:
         if not player:
             return {"success": False, "error": "Invalid player"}
         
+        # CRITICAL: Reject actions from folded players
+        if player.has_folded:
+            logger.error(f"ERROR: Folded player {player_id} attempted to act!")
+            return {"success": False, "error": "Cannot act after folding"}
+        
         if self.state.players[self.state.action_on].id != player_id:
             return {"success": False, "error": "Not your turn"}
         
@@ -971,6 +976,11 @@ class PokerGame:
             logger.error("This should never happen!")
             return {"animations": []}
         
+        # Check if pots have already been cleared (showdown already resolved)
+        if not self.state.pots or sum(pot.amount for pot in self.state.pots) == 0:
+            logger.warning("Showdown already resolved - no pots to award")
+            return {"animations": []}
+        
         animations = []
         active_players = self.get_players_in_hand()
         
@@ -1132,6 +1142,14 @@ class PokerGame:
         
         # Record hand history
         self._record_hand_history()
+        
+        # Clear pots to prevent double-awarding
+        self.state.pots = []
+        
+        # Clear all player bets
+        for p in self.state.players:
+            p.total_bet_this_hand = 0
+            p.current_bet = 0
         
         return {"animations": animations}
     
