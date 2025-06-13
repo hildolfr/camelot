@@ -907,6 +907,32 @@ body[data-player-count="2"] .player-seat[data-position="1"] .player-cards {
     opacity: 0.5;
 }
 
+/* Hand History Button */
+.hand-history-button {
+    position: fixed;
+    bottom: 70px;
+    right: 20px;
+    background: rgba(138, 43, 226, 0.95);
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    border-radius: 25px;
+    padding: 0.75rem 1.25rem;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    z-index: 99998;
+    font-size: 0.9rem;
+    user-select: none;
+    pointer-events: auto !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), 0 0 30px rgba(138, 43, 226, 0.4);
+}
+
+.hand-history-button:hover {
+    background: rgba(138, 43, 226, 1);
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: scale(1.05);
+}
+
 /* Bug Report Button */
 .bug-report-button {
     position: fixed;

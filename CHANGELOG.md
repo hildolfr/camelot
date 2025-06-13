@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+- Hand history tracking for poker game
+  - Records all completed hands with board cards, winners, and pot amounts
+  - Accessible via 📜 Hand History button during gameplay
+  - Shows most recent hands first with winner information
+  - API endpoint `/api/game/{game_id}/hand-history`
+
 ### Fixed
 - Fixed celebration animation (confetti) playing when AI wins instead of only when hero wins
   - Bug was in animateCelebration function which created confetti for any winner

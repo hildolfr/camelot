@@ -102,6 +102,12 @@ class Player:
         self.has_folded = False
         self.last_action = None
         self.is_active = self.stack > 0
+        
+        # Clear hand history attributes
+        if hasattr(self, '_won_amount'):
+            delattr(self, '_won_amount')
+        if hasattr(self, '_winning_hand'):
+            delattr(self, '_winning_hand')
 
 
 @dataclass
@@ -168,7 +174,7 @@ class PokerGame:
         self.game_id = f"game_{int(time.time() * 1000)}"
         self.config = game_config
         self.state = self._initialize_game_state()
-        self.hand_history = []
+        self.hand_history = []  # List of completed hands with all actions and results
         self._last_phase_change = None  # Track rapid phase transitions
         
         logger.info(f"\n{'='*60}\nINITIALIZING NEW GAME: {self.game_id}")
@@ -848,6 +854,10 @@ class PokerGame:
                     logger.info(f"{winner.name} wins pot of ${pot.amount}")
             
             if total_won > 0:
+                # Track winner info for hand history
+                winner._won_amount = total_won
+                winner._winning_hand = "All opponents folded"
+                
                 animations.append({
                     "type": "award_pot",
                     "winner_id": winner.id,
@@ -908,6 +918,12 @@ class PokerGame:
                         award_amount = split_amount + (remainder if j == 0 else 0)
                         winner.stack += award_amount
                         player_winnings[winner_id] += award_amount
+                        
+                        # Track winner info for hand history
+                        if not hasattr(winner, '_won_amount'):
+                            winner._won_amount = 0
+                            winner._winning_hand = evaluations[winner_id].name
+                        winner._won_amount += award_amount
                         
                         animations.append({
                             "type": "award_pot",
@@ -976,6 +992,9 @@ class PokerGame:
             "type": "hand_complete",
             "delay": 500
         })
+        
+        # Record hand history
+        self._record_hand_history()
         
         return {"animations": animations}
     
@@ -1270,6 +1289,62 @@ class PokerGame:
     def get_active_players(self) -> List[Player]:
         """Get all active players"""
         return self.state.get_active_players()
+    
+    def _record_hand_history(self):
+        """Record the completed hand in history"""
+        hand_record = {
+            "hand_number": self.state.hand_number,
+            "timestamp": datetime.now().isoformat(),
+            "board_cards": self.state.board_cards.copy(),
+            "pots": [
+                {
+                    "amount": pot.amount,
+                    "eligible_players": pot.eligible_players.copy()
+                }
+                for pot in self.state.pots
+            ],
+            "players": []
+        }
+        
+        # Record each player's final state
+        for player in self.state.players:
+            player_record = {
+                "id": player.id,
+                "name": player.name,
+                "position": player.position,
+                "hole_cards": player.hole_cards.copy() if player.hole_cards else [],
+                "final_stack": player.stack,
+                "total_bet": player.total_bet_this_hand,
+                "folded": player.has_folded,
+                "is_dealer": player.position == self.state.dealer_position,
+                "is_small_blind": player.position == self._get_small_blind_position(),
+                "is_big_blind": player.position == self._get_big_blind_position()
+            }
+            
+            # Add winner information if available
+            if hasattr(player, '_won_amount'):
+                player_record["won_amount"] = player._won_amount
+                player_record["winning_hand"] = player._winning_hand
+            
+            hand_record["players"].append(player_record)
+        
+        # Add to history
+        self.hand_history.append(hand_record)
+        
+        # Log hand summary
+        logger.info(f"\nHAND #{hand_record['hand_number']} RECORDED IN HISTORY")
+        logger.info(f"Board: {' '.join(hand_record['board_cards'])}")
+        for p in hand_record['players']:
+            if 'won_amount' in p:
+                logger.info(f"  {p['name']} won ${p['won_amount']} with {p.get('winning_hand', 'unknown')}")
+            elif p['folded']:
+                logger.info(f"  {p['name']} folded")
+            else:
+                logger.info(f"  {p['name']} lost with {' '.join(p['hole_cards'])}")
+    
+    def get_hand_history(self) -> List[Dict[str, Any]]:
+        """Get the complete hand history"""
+        return self.hand_history.copy()
     
     def _serialize_state(self) -> Dict[str, Any]:
         """Serialize game state for client"""

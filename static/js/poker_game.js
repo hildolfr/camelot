@@ -2015,6 +2015,106 @@ function showGameOverScreen(winnerId, message) {
 
 // (Bug report functions moved to top of file)
 
+// Show hand history
+async function showHandHistory() {
+    if (!gameState || !gameState.game_id) {
+        alert('No active game');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/game/${gameState.game_id}/hand-history`);
+        const data = await response.json();
+        
+        if (data.success) {
+            // Create modal to show hand history
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.9);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10000;
+                overflow-y: auto;
+            `;
+            
+            const content = document.createElement('div');
+            content.style.cssText = `
+                background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+                border: 2px solid #FFD700;
+                border-radius: 15px;
+                padding: 2rem;
+                max-width: 800px;
+                max-height: 80vh;
+                overflow-y: auto;
+                color: white;
+            `;
+            
+            let html = `
+                <h2 style="color: #FFD700; margin-bottom: 1rem;">📜 Hand History</h2>
+                <p style="margin-bottom: 1rem;">Total hands played: ${data.total_hands}</p>
+            `;
+            
+            if (data.hands.length === 0) {
+                html += '<p>No completed hands yet.</p>';
+            } else {
+                // Show hands in reverse order (most recent first)
+                data.hands.slice().reverse().forEach((hand) => {
+                    html += `
+                        <div style="background: rgba(0, 0, 0, 0.3); padding: 1rem; margin-bottom: 1rem; border-radius: 10px;">
+                            <h3 style="color: #FFD700;">Hand #${hand.hand_number}</h3>
+                            <p><strong>Board:</strong> ${hand.board_cards.join(' ') || 'No cards dealt'}</p>
+                            <p><strong>Pot:</strong> $${hand.pots.reduce((sum, pot) => sum + pot.amount, 0)}</p>
+                            <div style="margin-top: 0.5rem;">
+                    `;
+                    
+                    hand.players.forEach(player => {
+                        const dealerChip = player.is_dealer ? ' 🔘' : '';
+                        const result = player.won_amount ? 
+                            `<span style="color: #4CAF50;">Won $${player.won_amount} with ${player.winning_hand}</span>` :
+                            player.folded ? '<span style="color: #FF6347;">Folded</span>' :
+                            `<span style="color: #FF6347;">Lost with ${player.hole_cards.join(' ')}</span>`;
+                        
+                        html += `<p><strong>${player.name}${dealerChip}:</strong> ${result}</p>`;
+                    });
+                    
+                    html += `
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+            
+            html += `
+                <button onclick="this.closest('div').parentElement.remove()" 
+                        style="background: #DC143C; color: white; border: none; padding: 0.75rem 1.5rem; 
+                               border-radius: 8px; cursor: pointer; font-weight: bold; margin-top: 1rem;">
+                    Close
+                </button>
+            `;
+            
+            content.innerHTML = html;
+            modal.appendChild(content);
+            document.body.appendChild(modal);
+            
+            // Close on background click
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.remove();
+                }
+            });
+        }
+    } catch (error) {
+        console.error('Error fetching hand history:', error);
+        alert('Failed to load hand history');
+    }
+}
+
 // Make functions globally available immediately
 window.playerAction = playerAction;
 window.toggleSound = toggleSound;
@@ -2022,6 +2122,7 @@ window.leaveGame = leaveGame;
 window.showBugReportForm = showBugReportForm;
 window.closeBugReportForm = closeBugReportForm;
 window.submitBugReport = submitBugReport;
+window.showHandHistory = showHandHistory;
 
 // Also attach to window on load as backup
 window.addEventListener('load', function() {

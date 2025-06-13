@@ -217,6 +217,26 @@ async def get_hand_strength(game_id: str, player_id: str) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/{game_id}/hand-history")
+async def get_hand_history(game_id: str) -> Dict[str, Any]:
+    """Get the hand history for a game."""
+    game = active_games.get(game_id)
+    if not game:
+        raise HTTPException(status_code=404, detail="Game not found")
+    
+    try:
+        history = game.get_hand_history()
+        return {
+            "success": True,
+            "game_id": game_id,
+            "total_hands": len(history),
+            "hands": history
+        }
+    except Exception as e:
+        logger.error(f"Error getting hand history: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.delete("/{game_id}")
 async def end_game(game_id: str) -> Dict[str, Any]:
     """End a game and clean up."""
