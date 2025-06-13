@@ -1239,61 +1239,58 @@ class PokerGame:
         """
         logger.info("\nCALCULATING POTS:")
         
+        # First check if everyone folded to one player
+        remaining_players = [p for p in self.state.players if not p.has_folded]
+        if len(remaining_players) == 1:
+            # Everyone else folded - handle uncalled bets
+            winner = remaining_players[0]
+            folded_bets = [p.total_bet_this_hand for p in self.state.players if p.has_folded and p.total_bet_this_hand > 0]
+            
+            if folded_bets:
+                # The maximum anyone called is the highest bet from folded players
+                max_called = max(folded_bets)
+                
+                # Winner collects the called amount from all players
+                pot_size = 0
+                for p in self.state.players:
+                    # Each player contributes up to the max called amount
+                    contribution = min(p.total_bet_this_hand, max_called)
+                    pot_size += contribution
+                    logger.info(f"  {p.name} contributes ${contribution} to pot (bet ${p.total_bet_this_hand})")
+                
+                # Create pot with only the called amounts
+                self.state.pots = [Pot(amount=pot_size, eligible_players=[winner.id])]
+                logger.info(f"Everyone folded. Pot: ${pot_size} (max called: ${max_called})")
+                
+                # Return uncalled portion to the winner IMMEDIATELY
+                uncalled = winner.total_bet_this_hand - max_called
+                if uncalled > 0:
+                    winner.stack += uncalled
+                    logger.info(f"Returned uncalled bet of ${uncalled} to {winner.name}")
+                    logger.info(f"{winner.name} stack after uncalled return: ${winner.stack}")
+                
+                # CRITICAL: Clear bets for all players to prevent double-counting
+                for p in self.state.players:
+                    p.total_bet_this_hand = 0
+            else:
+                # No one else had any bets (e.g., everyone folded pre-flop to BB)
+                # Winner just gets their own bet back
+                self.state.pots = []
+                winner.stack += winner.total_bet_this_hand
+                logger.info(f"No callers. Returned ${winner.total_bet_this_hand} to {winner.name}")
+                # Clear all bets
+                for p in self.state.players:
+                    p.total_bet_this_hand = 0
+            return
+        
         # Get all unique bet amounts from players who haven't folded
         bet_amounts = []
         for p in self.state.players:
             # Use total_bet_this_hand to get total contributions for the entire hand
-            if p.total_bet_this_hand > 0:
+            if p.total_bet_this_hand > 0 and not p.has_folded:
                 if p.total_bet_this_hand not in bet_amounts:
                     bet_amounts.append(p.total_bet_this_hand)
                 logger.info(f"  {p.name}: total bet this hand ${p.total_bet_this_hand}, folded={p.has_folded}")
-        
-        if not bet_amounts:
-            # If no bets from non-folded players (everyone folded), handle uncalled bets
-            remaining_players = [p for p in self.state.players if not p.has_folded]
-            if len(remaining_players) == 1 and sum(p.total_bet_this_hand for p in self.state.players) > 0:
-                # Find the highest bet among folded players (this is what was "called")
-                winner = remaining_players[0]
-                folded_bets = [p.total_bet_this_hand for p in self.state.players if p.has_folded and p.total_bet_this_hand > 0]
-                
-                if folded_bets:
-                    # The maximum anyone called is the highest bet from folded players
-                    max_called = max(folded_bets)
-                    
-                    # Winner collects the called amount from folded players only
-                    pot_size = 0
-                    for p in self.state.players:
-                        if p.has_folded:  # Only count contributions from folded players
-                            contribution = min(p.total_bet_this_hand, max_called)
-                            pot_size += contribution
-                    
-                    # Add the winner's matched amount (what they actually risk)
-                    pot_size += min(winner.total_bet_this_hand, max_called)
-                    
-                    # Create pot with only the called amounts
-                    self.state.pots = [Pot(amount=pot_size, eligible_players=[winner.id])]
-                    logger.info(f"Everyone folded. Pot: ${pot_size} (max called: ${max_called})")
-                    
-                    # Return uncalled portion to the winner IMMEDIATELY
-                    uncalled = winner.total_bet_this_hand - max_called
-                    if uncalled > 0:
-                        winner.stack += uncalled
-                        logger.info(f"Returned uncalled bet of ${uncalled} to {winner.name}")
-                        logger.info(f"{winner.name} stack after uncalled return: ${winner.stack}")
-                    
-                    # CRITICAL: Clear bets for all players to prevent double-counting
-                    for p in self.state.players:
-                        p.total_bet_this_hand = 0
-                else:
-                    # No one else had any bets (e.g., everyone folded pre-flop to BB)
-                    # Winner just gets their own bet back
-                    self.state.pots = []
-                    winner.stack += winner.total_bet_this_hand
-                    logger.info(f"No callers. Returned ${winner.total_bet_this_hand} to {winner.name}")
-                    # Clear all bets
-                    for p in self.state.players:
-                        p.total_bet_this_hand = 0
-            return
         
         # Sort bet amounts ascending
         bet_amounts.sort()
