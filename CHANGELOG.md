@@ -10,6 +10,10 @@
   - API endpoint `/api/game/{game_id}/hand-history`
 
 ### Fixed
+- Fixed critical double-payment bug when players fold to all-in
+  - Winner was receiving uncalled bet refund AND winning a pot with their full bet
+  - Now clears all player bets after handling uncalled returns to prevent double-counting
+  - Addresses user report: "why did I just win double?" with $402 extra chips
 - Fixed visual bug where winner's stack updated before pot animation
   - Now sends pre-win stack value with award_pot animation
   - Stack shows correct amount until pot animation completes

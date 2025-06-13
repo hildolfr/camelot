@@ -1154,21 +1154,25 @@ class PokerGame:
                     self.state.pots = [Pot(amount=pot_size, eligible_players=[winner.id])]
                     logger.info(f"Everyone folded. Pot: ${pot_size} (max called: ${max_called})")
                     
-                    # Return uncalled portion to the winner
+                    # Return uncalled portion to the winner IMMEDIATELY
                     uncalled = winner.total_bet_this_hand - max_called
                     if uncalled > 0:
                         winner.stack += uncalled
                         logger.info(f"Returned uncalled bet of ${uncalled} to {winner.name}")
                         logger.info(f"{winner.name} stack after uncalled return: ${winner.stack}")
-                        # Adjust the winner's total bet to reflect only the called portion
-                        winner.total_bet_this_hand = max_called
+                    
+                    # CRITICAL: Clear bets for all players to prevent double-counting
+                    for p in self.state.players:
+                        p.total_bet_this_hand = 0
                 else:
                     # No one else had any bets (e.g., everyone folded pre-flop to BB)
                     # Winner just gets their own bet back
                     self.state.pots = []
                     winner.stack += winner.total_bet_this_hand
                     logger.info(f"No callers. Returned ${winner.total_bet_this_hand} to {winner.name}")
-                    winner.total_bet_this_hand = 0
+                    # Clear all bets
+                    for p in self.state.players:
+                        p.total_bet_this_hand = 0
             return
         
         # Sort bet amounts ascending
