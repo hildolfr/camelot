@@ -275,6 +275,19 @@ class PokerGame:
         
         self.state.hand_number += 1
         
+        # Validate chip integrity at start of hand
+        total_chips_start = sum(p.stack for p in self.state.players)
+        expected_total = self.config['heroStack'] * self.config['bigBlind']
+        for stack in self.config['opponentStacks']:
+            expected_total += stack * self.config['bigBlind']
+        
+        if total_chips_start != expected_total:
+            logger.error(f"CHIP INTEGRITY ERROR at start of hand #{self.state.hand_number}!")
+            logger.error(f"Expected ${expected_total} total chips, but found ${total_chips_start}")
+            logger.error(f"Difference: ${total_chips_start - expected_total} extra chips")
+            for p in self.state.players:
+                logger.error(f"  {p.name}: stack=${p.stack}")
+        
         # Reset phase to WAITING at the start of new hand
         self.state.phase = GamePhase.WAITING
         
@@ -849,9 +862,11 @@ class PokerGame:
             # Award all pots the winner is eligible for
             for pot in self.state.pots:
                 if winner.id in pot.eligible_players:
+                    logger.info(f"Before awarding pot: {winner.name} stack=${winner.stack}")
                     winner.stack += pot.amount
                     total_won += pot.amount
                     logger.info(f"{winner.name} wins pot of ${pot.amount}")
+                    logger.info(f"After awarding pot: {winner.name} stack=${winner.stack}")
             
             if total_won > 0:
                 # Track winner info for hand history
@@ -1123,11 +1138,15 @@ class PokerGame:
                     # The maximum anyone called is the highest bet from folded players
                     max_called = max(folded_bets)
                     
-                    # Winner collects the called amount from each player (including themselves)
+                    # Winner collects the called amount from folded players only
                     pot_size = 0
                     for p in self.state.players:
-                        contribution = min(p.total_bet_this_hand, max_called)
-                        pot_size += contribution
+                        if p.has_folded:  # Only count contributions from folded players
+                            contribution = min(p.total_bet_this_hand, max_called)
+                            pot_size += contribution
+                    
+                    # Add the winner's matched amount (what they actually risk)
+                    pot_size += min(winner.total_bet_this_hand, max_called)
                     
                     # Create pot with only the called amounts
                     self.state.pots = [Pot(amount=pot_size, eligible_players=[winner.id])]
@@ -1138,6 +1157,7 @@ class PokerGame:
                     if uncalled > 0:
                         winner.stack += uncalled
                         logger.info(f"Returned uncalled bet of ${uncalled} to {winner.name}")
+                        logger.info(f"{winner.name} stack after uncalled return: ${winner.stack}")
                         # Adjust the winner's total bet to reflect only the called portion
                         winner.total_bet_this_hand = max_called
                 else:

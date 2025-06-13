@@ -973,13 +973,6 @@ async function animateAwardPot(animation) {
     }, 50);
     
     // Update winner's stack with animation
-    // Calculate the stack before the win (current stack minus the pot amount)
-    const stackBeforeWin = player.stack - animation.amount;
-    
-    // First, update to show the stack before winning
-    updatePlayerStack(animation.winner_id, stackBeforeWin);
-    
-    // Then animate the win after the pot reaches the player
     setTimeout(() => {
         updatePlayerStack(animation.winner_id, player.stack);
         playerStack.classList.add('stack-increase');

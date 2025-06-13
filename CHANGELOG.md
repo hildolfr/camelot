@@ -10,12 +10,16 @@
   - API endpoint `/api/game/{game_id}/hand-history`
 
 ### Fixed
+- Fixed critical chip creation bug in pot calculation when players fold to all-in
+  - Bug was double-counting winner's contribution when returning uncalled bets
+  - Now correctly calculates pot from folded players only plus winner's matched amount
+  - Added chip integrity validation at start of each hand to catch issues early
+  - Addresses user report: "weird money stuff happening again" with $393 extra chips
 - Fixed celebration animation (confetti) playing when AI wins instead of only when hero wins
   - Bug was in animateCelebration function which created confetti for any winner
   - Now checks if winner_id === 'hero' before creating confetti effects
-- Fixed visual bug where winner's stack updated immediately during all-in
-  - Stack now shows pre-win amount first, then animates the increase when pot arrives
-  - Addresses user report: "his bet turned to 800 like he got my money right when we bet"
+- Reverted visual bug fix that was causing incorrect stack displays
+  - The fix was subtracting pot amount from winner's stack, causing negative values
 - Changed misleading error log "No active players found to act!" to info level
   - This is normal behavior when all players are all-in
 - Fixed TypeScript warnings for unused variables in poker_game.js
