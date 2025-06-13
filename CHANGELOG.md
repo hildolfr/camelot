@@ -3,6 +3,9 @@
 ## [Unreleased]
 
 ### Fixed
+- Fixed celebration animation (confetti) playing when AI wins instead of only when hero wins
+  - Bug was in animateCelebration function which created confetti for any winner
+  - Now checks if winner_id === 'hero' before creating confetti effects
 - Fixed critical pot calculation bug that was creating extra chips by accumulating pots across betting rounds
   - Changed pot calculation to only run once at showdown instead of after each betting round
   - Renamed `total_bet_this_round` to `total_bet_this_hand` for clarity

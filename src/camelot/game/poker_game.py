@@ -173,6 +173,14 @@ class PokerGame:
         
         logger.info(f"\n{'='*60}\nINITIALIZING NEW GAME: {self.game_id}")
         logger.info(f"Config: {json.dumps(game_config, indent=2)}")
+        
+        # Log total chips in play
+        total_chips = (game_config['heroStack'] + sum(game_config['opponentStacks'])) * game_config['bigBlind']
+        logger.info(f"Total chips in play: ${total_chips}")
+        logger.info(f"  Hero: {game_config['heroStack']} BB × ${game_config['bigBlind']} = ${game_config['heroStack'] * game_config['bigBlind']}")
+        for i, stack in enumerate(game_config['opponentStacks']):
+            logger.info(f"  Opponent {i+1}: {stack} BB × ${game_config['bigBlind']} = ${stack * game_config['bigBlind']}")
+        
         logger.info(f"{'='*60}\n")
         
     def _initialize_game_state(self) -> GameState:
@@ -934,10 +942,21 @@ class PokerGame:
         
         # Log final player stacks
         busted_players = []
+        total_chips_end = 0
         for player in self.state.players:
             logger.info(f"{player.name} final stack: ${player.stack}")
+            total_chips_end += player.stack
             if player.stack == 0:
                 busted_players.append(player)
+        
+        # Validate chip integrity
+        expected_total = self.config['heroStack'] * self.config['bigBlind']
+        for stack in self.config['opponentStacks']:
+            expected_total += stack * self.config['bigBlind']
+        
+        if total_chips_end != expected_total:
+            logger.error(f"CHIP INTEGRITY ERROR: Expected ${expected_total} total chips, but found ${total_chips_end}!")
+            logger.error(f"Difference: ${total_chips_end - expected_total} extra chips created!")
         
         # If someone got busted, add extra delay so players can see why
         if busted_players:
@@ -1149,6 +1168,20 @@ class PokerGame:
         if total_pot > total_chips_in_play:
             logger.error(f"ERROR: Pot total ${total_pot} exceeds total chips in play ${total_chips_in_play}!")
             logger.error("This indicates a serious bug in pot calculation!")
+        
+        # Also validate against expected total from config
+        expected_total = self.config['heroStack'] * self.config['bigBlind']
+        for stack in self.config['opponentStacks']:
+            expected_total += stack * self.config['bigBlind']
+        
+        if total_pot != sum(p.total_bet_this_hand for p in self.state.players):
+            logger.error(f"ERROR: Pot total ${total_pot} doesn't match sum of bets ${sum(p.total_bet_this_hand for p in self.state.players)}!")
+        
+        if total_chips_in_play != expected_total:
+            logger.error(f"CHIP INTEGRITY ERROR in pot calculation: Expected ${expected_total} total chips, but found ${total_chips_in_play}!")
+            logger.error(f"Player details:")
+            for p in self.state.players:
+                logger.error(f"  {p.name}: stack=${p.stack}, total_bet_this_hand=${p.total_bet_this_hand}")
     
     def _get_small_blind_position(self) -> int:
         """Get small blind position"""

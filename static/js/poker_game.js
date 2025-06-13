@@ -1034,8 +1034,10 @@ async function animateCelebration(animation) {
     const playerInfo = document.getElementById(`player_${animation.winner_id}`);
     playerInfo.classList.add('winner');
     
-    // Create confetti
-    createConfetti();
+    // Only create confetti if hero won
+    if (animation.winner_id === 'hero') {
+        createConfetti();
+    }
     
     await sleep(3000);
     
