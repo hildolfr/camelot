@@ -403,6 +403,14 @@ function createActionTimer() {
 
 // Start a new hand
 async function startNewHand() {
+    // Prevent duplicate calls
+    if (isStartingNewHand) {
+        console.log('Already starting new hand, ignoring duplicate call');
+        return;
+    }
+    
+    isStartingNewHand = true;
+    
     try {
         console.log('Starting new hand for game:', gameState.game_id);
         
@@ -461,6 +469,11 @@ async function startNewHand() {
         }
     } catch (error) {
         console.error('Error starting new hand:', error);
+    } finally {
+        // Reset flag after a delay to allow for proper timing
+        setTimeout(() => {
+            isStartingNewHand = false;
+        }, 1000);
     }
 }
 
@@ -1804,6 +1817,9 @@ function animateNumber(elementId, targetValue) {
 
 // Track if we're processing an action
 let isProcessingAction = false;
+
+// Track if we're already starting a new hand to prevent duplicates
+let isStartingNewHand = false;
 
 // Player action handler
 async function playerAction(action) {
