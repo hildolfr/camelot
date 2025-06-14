@@ -524,10 +524,18 @@ function updateBoardCards() {
     if (gameState.board_cards && gameState.board_cards.length > 0) {
         gameState.board_cards.forEach((card, index) => {
             const cardDiv = document.createElement('div');
-            cardDiv.className = 'community-card';
+            cardDiv.className = 'board-card';
             cardDiv.innerHTML = formatCard(card);
             if (card.includes('♥') || card.includes('♦')) {
                 cardDiv.classList.add('red');
+            }
+            // Add appropriate animation class based on index
+            if (index < 3) {
+                cardDiv.classList.add('flop-card');
+            } else if (index === 3) {
+                cardDiv.classList.add('turn-card');
+            } else if (index === 4) {
+                cardDiv.classList.add('river-card');
             }
             communityCards.appendChild(cardDiv);
         });
@@ -1246,22 +1254,24 @@ async function playAnimation(animation) {
         case 'request_next_cards':
             // In all-in situation, need to advance phase then deal cards
             console.log('All-in: Need to advance to', animation.phase, 'and deal cards');
-            // Use setTimeout to ensure proper sequencing
-            setTimeout(async () => {
-                // First advance the phase
-                const advanceResult = await advanceAllInPhase();
-                // Then request the cards after a short delay
-                if (advanceResult) {
-                    setTimeout(async () => {
-                        await requestNextPhaseCards();
-                    }, 500);
-                }
-            }, animation.delay || 2000);
+            // Wait for the specified delay before advancing
+            await sleep(animation.delay || 2000);
+            
+            // First advance the phase
+            const advanceResult = await advanceAllInPhase();
+            
+            // Then request the cards after a short delay
+            if (advanceResult) {
+                await sleep(500);
+                await requestNextPhaseCards();
+            }
             break;
             
         case 'proceed_to_showdown':
             // All cards dealt, proceed to showdown
             console.log('Proceeding to showdown');
+            // Wait for the specified delay before proceeding
+            await sleep(animation.delay || 2000);
             // Advance to showdown phase
             await advanceAllInPhase();
             break;
@@ -3097,13 +3107,15 @@ async function requestNextPhaseCards() {
         
         const data = await response.json();
         
-        if (data.success) {
+        if (response.ok && data.success) {
             gameState = data.state;
             if (data.animations) {
                 queueAnimations(data.animations, 'http_deal_cards');
             }
         } else {
-            console.error('Failed to deal cards:', data.error);
+            // Handle error from either data.error or data.detail (FastAPI format)
+            const errorMsg = data.error || data.detail || 'Unknown error';
+            console.error('Failed to deal cards:', errorMsg);
         }
     } catch (error) {
         console.error('Error requesting cards:', error);

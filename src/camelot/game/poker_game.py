@@ -326,6 +326,9 @@ class PokerGame:
         active_players = [p for p in self.state.players if p.stack > 0]
         self.state.pots = []
         
+        # Set phase to PRE_FLOP early to ensure blinds are logged correctly
+        self.state.phase = GamePhase.PRE_FLOP
+        
         # Post blinds with animations
         animations = []
         
@@ -378,8 +381,7 @@ class PokerGame:
                 else:
                     logger.info(f"Skipping deal for {player.name} - no chips remaining")
         
-        # Set phase and betting amounts BEFORE determining who acts first
-        self.state.phase = GamePhase.PRE_FLOP
+        # Set betting amounts (phase already set to PRE_FLOP above)
         self.state.current_bet = self.state.big_blind
         self.state.min_raise = self.state.big_blind
         
@@ -506,7 +508,12 @@ class PokerGame:
         logger.info(f"  Phase: {self.state.phase.name}")
         logger.info(f"  Current bet: ${self.state.current_bet}")
         logger.info(f"  Board cards: {self.state.board_cards}")
-        logger.info(f"  Pot total: ${sum(pot.amount for pot in self.state.pots)}")
+        # Calculate current pot (including current round bets)
+        pot_total = sum(pot.amount for pot in self.state.pots)
+        if pot_total == 0:
+            # During betting rounds, calculate from player contributions
+            pot_total = sum(p.total_bet_this_hand for p in self.state.players)
+        logger.info(f"  Pot total: ${pot_total}")
         
         # Log all player states
         logger.info("Player states:")
@@ -887,6 +894,11 @@ class PokerGame:
                 # Mark that all players are all-in
                 self.state.all_players_all_in = True
                 
+                # CRITICAL: Calculate pots NOW before phase transitions reset current_bet
+                logger.info("Calculating pots immediately for all-in situation")
+                self._calculate_pots()
+                logger.info(f"Pots calculated: {len(self.state.pots)} pots, total: ${sum(pot.amount for pot in self.state.pots)}")
+                
                 # Add a visual notification
                 animations.append({
                     "type": "delay",
@@ -1035,23 +1047,24 @@ class PokerGame:
         # If all players are all-in and we just dealt cards, check if we should continue
         if self.state.all_players_all_in:
             # Check if we need to advance to next phase
+            # Add longer delays for dramatic effect when all-in
             if self.state.phase == GamePhase.FLOP:
                 animations.append({
                     "type": "request_next_cards",
                     "phase": "TURN",
-                    "delay": 2000
+                    "delay": 3500  # Increased from 2000ms
                 })
             elif self.state.phase == GamePhase.TURN:
                 animations.append({
                     "type": "request_next_cards", 
                     "phase": "RIVER",
-                    "delay": 2000
+                    "delay": 3500  # Increased from 2000ms
                 })
             elif self.state.phase == GamePhase.RIVER:
                 # Time for showdown
                 animations.append({
                     "type": "proceed_to_showdown",
-                    "delay": 2000
+                    "delay": 4000  # Increased from 2000ms for final drama
                 })
         
         return {
@@ -1389,6 +1402,11 @@ class PokerGame:
         """
         logger.info("\nCALCULATING POTS:")
         
+        # If pots already exist (e.g., calculated during all-in), don't recalculate
+        if self.state.pots and sum(pot.amount for pot in self.state.pots) > 0:
+            logger.info(f"Pots already calculated: {len(self.state.pots)} pots, total ${sum(pot.amount for pot in self.state.pots)}")
+            return
+        
         # First check if everyone folded to one player
         remaining_players = [p for p in self.state.players if not p.has_folded]
         if len(remaining_players) == 1:
@@ -1422,9 +1440,8 @@ class PokerGame:
                     # Record chip movement
                     self._record_chip_movement(winner.id, uncalled, "uncalled_bet_return", stack_before)
                 
-                # CRITICAL: Clear bets for all players to prevent double-counting
-                for p in self.state.players:
-                    p.total_bet_this_hand = 0
+                # Don't clear bets yet - they're needed for pot awarding
+                # Will be cleared after pot is awarded
             else:
                 # No one else had any bets (e.g., everyone folded pre-flop to BB)
                 # Winner just gets their own bet back
@@ -1559,7 +1576,7 @@ class PokerGame:
         
         # This is normal when all players are all-in
         logger.info("No active players found to act (all players are all-in or folded)")
-        return -1
+        return -1  # Explicitly return -1 when no one can act
     
     def _get_next_active_position(self, current: int) -> int:
         """Get next active player position"""
@@ -1725,8 +1742,12 @@ class PokerGame:
                 warnings.append(f"{player.name} has folded but still has bet: ${player.current_bet}")
         
         # 3. Validate action position
-        if self.state.phase not in [GamePhase.GAME_OVER, GamePhase.WAITING]:
-            if self.state.action_on < 0 or self.state.action_on >= len(self.state.players):
+        if self.state.phase not in [GamePhase.GAME_OVER, GamePhase.WAITING, GamePhase.SHOWDOWN]:
+            # In all-in situations, action_on can be -1 (no one can act)
+            if self.state.all_players_all_in and self.state.action_on == -1:
+                # This is expected - all players are all-in
+                pass
+            elif self.state.action_on < 0 or self.state.action_on >= len(self.state.players):
                 errors.append(f"Invalid action position: {self.state.action_on}")
             else:
                 action_player = self.state.players[self.state.action_on]
@@ -1754,7 +1775,8 @@ class PokerGame:
         }
         if self.state.phase in expected_cards:
             expected = expected_cards[self.state.phase]
-            if board_count != expected and not (self.state.phase == GamePhase.GAME_OVER and board_count < 5):
+            # Don't validate board cards if we're awaiting card deal (all-in situation)
+            if board_count != expected and not self.state.awaiting_card_deal and not (self.state.phase == GamePhase.GAME_OVER and board_count < 5):
                 errors.append(f"Phase {self.state.phase.name} expects {expected} board cards, found {board_count}")
         
         return {
