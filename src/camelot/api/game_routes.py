@@ -1,12 +1,16 @@
 """Game API routes for poker game functionality."""
 
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException, Body, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 from typing import Dict, Any, Optional, List
 import logging
+import asyncio
+import time
 
 from ..game.poker_game import PokerGame, PlayerAction
 from ..game.ai_player import AIPlayer
+from ..core.game_monitor import game_monitor
+from ..core.websocket_manager import websocket_manager
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +32,7 @@ class PlayerActionRequest(BaseModel):
     player_id: str
     action: str
     amount: int = 0
+    request_id: Optional[str] = None  # For deduplication
 
 
 class AIActionRequest(BaseModel):
@@ -67,6 +72,16 @@ async def start_new_hand(game_id: str) -> Dict[str, Any]:
     
     try:
         result = game.start_new_hand()
+        
+        # Broadcast new hand to all connected players
+        if result.get("success"):
+            await websocket_manager.broadcast_to_game(game_id, {
+                "type": "new_hand",
+                "state": result["state"],
+                "animations": result.get("animations", []),
+                "message": result.get("message", "New hand started")
+            })
+        
         return result
     except Exception as e:
         logger.error(f"Error starting new hand: {e}")
@@ -84,11 +99,52 @@ async def process_player_action(game_id: str, request: PlayerActionRequest) -> D
         # Convert string action to PlayerAction enum
         action = PlayerAction(request.action)
         
-        # Process the action
-        result = game.process_action(request.player_id, action, request.amount)
+        # Check if this is a duplicate request
+        is_duplicate = False
+        if request.request_id and hasattr(game, '_processed_requests'):
+            is_duplicate = request.request_id in game._processed_requests
+        
+        # Record the request
+        game_monitor.record_request(
+            game_id=game_id,
+            player_id=request.player_id,
+            action=request.action,
+            request_id=request.request_id,
+            is_duplicate=is_duplicate
+        )
+        
+        # Process the action with request_id if provided
+        result = await game.process_action(request.player_id, action, request.amount, request.request_id)
         
         if not result["success"]:
+            # Record error
+            game_monitor.record_error(game_id, "action_failed", {
+                "player_id": request.player_id,
+                "action": request.action,
+                "error": result.get("error", "Unknown error")
+            })
             raise HTTPException(status_code=400, detail=result.get("error", "Invalid action"))
+        
+        # Check for validation errors
+        if "validation_errors" in result:
+            game_monitor.record_error(game_id, "chip_integrity", {
+                "errors": result["validation_errors"],
+                "action": request.action,
+                "player_id": request.player_id
+            })
+        
+        # Broadcast update via WebSocket to all connected players
+        await websocket_manager.broadcast_to_game(game_id, {
+            "type": "game_update",
+            "state": result["state"],
+            "animations": result.get("animations", []),
+            "last_action": {
+                "player_id": request.player_id,
+                "action": request.action,
+                "amount": request.amount
+            },
+            "source": "http_action"
+        })
         
         return result
     except ValueError as e:
@@ -120,8 +176,24 @@ async def process_ai_action(game_id: str, request: AIActionRequest) -> Dict[str,
         ai = AIPlayer(game.config.get('difficulty', 'medium'))
         action, amount = ai.decide_action(game.state, ai_player)
         
-        # Process the action
-        result = game.process_action(request.player_id, action, amount)
+        # Process the action (AI actions should also use request IDs to prevent duplicates)
+        import uuid
+        ai_request_id = f"ai_{request.player_id}_{uuid.uuid4()}"
+        result = await game.process_action(request.player_id, action, amount, ai_request_id)
+        
+        # Broadcast update via WebSocket if action succeeded
+        if result.get("success"):
+            await websocket_manager.broadcast_to_game(game_id, {
+                "type": "game_update",
+                "state": result["state"],
+                "animations": result.get("animations", []),
+                "last_action": {
+                    "player_id": request.player_id,
+                    "action": action.value,
+                    "amount": amount
+                },
+                "source": "ai_action"
+            })
         
         return result
     except Exception as e:
@@ -202,11 +274,28 @@ async def get_hand_strength(game_id: str, player_id: str) -> Dict[str, Any]:
             }
         
         # Import calculator
-        from ..core.cached_poker_calculator import get_cached_calculator
+        from ..core.cache_init import get_cached_calculator
         calculator = get_cached_calculator()
         
         # Count active opponents
         active_opponents = sum(1 for p in game.state.players if p.id != player_id and not p.has_folded)
+        
+        # If no active opponents, hero has won - no need to calculate
+        if active_opponents == 0:
+            return {
+                "success": True,
+                "has_cards": True,
+                "win_probability": 1.0,  # 100% win - all opponents folded
+                "tie_probability": 0.0,
+                "current_hand": "All opponents folded",
+                "hand_categories": {},
+                "pot_odds": 0,
+                "to_call": 0,
+                "pot_size": sum(pot.amount for pot in game.state.pots),
+                "equity_needed": 0,
+                "pot_odds_percentage": 0,
+                "has_direct_odds": True
+            }
         
         # Calculate pot odds
         pot_size = sum(pot.amount for pot in game.state.pots)
@@ -307,3 +396,137 @@ async def submit_bug_report(game_id: str, bug_report: dict = Body(...)):
     logger.error(f"{'='*80}\n")
     
     return {"success": True, "message": "Bug report submitted successfully"}
+
+
+@router.get("/monitor/metrics")
+async def get_monitor_metrics() -> Dict[str, Any]:
+    """Get global monitoring metrics"""
+    return game_monitor.get_metrics()
+
+
+@router.get("/monitor/game/{game_id}")
+async def get_game_health(game_id: str) -> Dict[str, Any]:
+    """Get health status for a specific game"""
+    return game_monitor.get_game_health(game_id)
+
+
+@router.websocket("/ws/{game_id}/{player_id}")
+async def websocket_endpoint(websocket: WebSocket, game_id: str, player_id: str):
+    """WebSocket endpoint for real-time game updates"""
+    logger.info(f"WebSocket connection attempt - game_id: {game_id}, player_id: {player_id}")
+    
+    # Verify game exists
+    game = active_games.get(game_id)
+    if not game:
+        logger.error(f"WebSocket rejected - game {game_id} not found")
+        await websocket.close(code=4004, reason="Game not found")
+        return
+    
+    # Verify player exists in game
+    player_exists = any(p.id == player_id for p in game.state.players)
+    is_spectator = not player_exists
+    logger.info(f"Player {player_id} exists: {player_exists}, is_spectator: {is_spectator}")
+    
+    # Accept WebSocket connection first
+    await websocket.accept()
+    logger.info(f"WebSocket accepted for {player_id}")
+    
+    # Connect to WebSocket manager
+    try:
+        logger.debug(f"Connecting {player_id} to WebSocket manager...")
+        conn = await websocket_manager.connect(game_id, player_id, websocket, is_spectator)
+        logger.info(f"WebSocket connection established for {player_id}")
+        
+        # Send initial state
+        await conn.send_json({
+            "type": "connection_established",
+            "game_state": game._serialize_state(),
+            "is_spectator": is_spectator
+        })
+        
+        # Handle incoming messages
+        while True:
+            try:
+                data = await websocket.receive_json()
+                
+                # Handle different message types
+                if data.get("type") == "ping":
+                    await conn.send_json({"type": "pong", "timestamp": data.get("timestamp")})
+                    conn.last_ping = time.time()
+                
+                elif data.get("type") == "action" and not is_spectator:
+                    # Process game action via WebSocket
+                    action_data = data.get("data", {})
+                    try:
+                        action = PlayerAction(action_data.get("action"))
+                        amount = action_data.get("amount", 0)
+                        request_id = action_data.get("request_id")
+                        
+                        # Record the request
+                        is_duplicate = request_id and hasattr(game, '_processed_requests') and request_id in game._processed_requests
+                        game_monitor.record_request(game_id, player_id, action_data.get("action"), request_id, is_duplicate)
+                        
+                        # Process the action
+                        result = await game.process_action(player_id, action, amount, request_id)
+                        
+                        if result["success"]:
+                            # Broadcast state update to all players
+                            await websocket_manager.broadcast_to_game(game_id, {
+                                "type": "game_update",
+                                "state": result["state"],
+                                "animations": result.get("animations", []),
+                                "last_action": {
+                                    "player_id": player_id,
+                                    "action": action.value,
+                                    "amount": amount
+                                }
+                            })
+                        else:
+                            # Send error only to the acting player
+                            await conn.send_json({
+                                "type": "action_error",
+                                "error": result.get("error", "Action failed"),
+                                "request_id": request_id
+                            })
+                            
+                            # Record error
+                            game_monitor.record_error(game_id, "action_failed", {
+                                "player_id": player_id,
+                                "action": action_data.get("action"),
+                                "error": result.get("error")
+                            })
+                    
+                    except ValueError as e:
+                        await conn.send_json({
+                            "type": "action_error",
+                            "error": f"Invalid action: {action_data.get('action')}",
+                            "request_id": action_data.get("request_id")
+                        })
+                
+                else:
+                    # Unknown message type
+                    await conn.send_json({
+                        "type": "error",
+                        "error": f"Unknown message type: {data.get('type')}"
+                    })
+            
+            except WebSocketDisconnect:
+                logger.info(f"WebSocket disconnected for {player_id}")
+                break
+            except Exception as e:
+                logger.error(f"Error handling WebSocket message from {player_id}: {e}", exc_info=True)
+                await conn.send_json({
+                    "type": "error",
+                    "error": "Internal server error"
+                })
+    
+    finally:
+        # Disconnect from manager
+        logger.info(f"Cleaning up WebSocket connection for {player_id}")
+        await websocket_manager.disconnect(game_id, player_id)
+
+
+@router.get("/ws/rooms")
+async def get_websocket_rooms() -> Dict[str, Any]:
+    """Get information about active WebSocket rooms"""
+    return websocket_manager.get_all_rooms_info()

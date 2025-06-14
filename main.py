@@ -3,6 +3,9 @@ Camelot - Main FastAPI application
 A web interface and REST API for the poker_knight module.
 """
 
+# Import logging config first
+import logging_config
+
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,6 +19,7 @@ from src.camelot.api import calculator as calc_module
 from src.camelot.api.game_routes import router as game_router
 from src.camelot.web.routes import router as web_router
 from src.camelot.core.cache_init import initialize_cache_system, get_cache_manager
+from src.camelot.core.websocket_manager import websocket_manager
 import config
 
 # Configure logging
@@ -57,6 +61,10 @@ async def startup_event():
     
     # Initialize cache system
     calculator, cache_storage = initialize_cache_system()
+    
+    # Start WebSocket manager
+    await websocket_manager.start()
+    print("🔌 WebSocket manager started")
     
     if config.ENABLE_CACHE:
         # Initialize cache manager for warming
@@ -144,6 +152,10 @@ async def initialize_cache_background(cache_manager):
 async def shutdown_event():
     """Clean up on shutdown."""
     print("🏰 Camelot is shutting down...")
+    
+    # Stop WebSocket manager
+    await websocket_manager.stop()
+    print("🔌 WebSocket manager stopped")
 
 
 if __name__ == "__main__":

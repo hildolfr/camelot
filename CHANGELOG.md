@@ -3,6 +3,30 @@
 ## [Unreleased]
 
 ### Added
+- Real-time WebSocket support for game updates
+  - WebSocket connection manager for game rooms
+  - Bidirectional communication for instant updates
+  - Automatic reconnection with exponential backoff
+  - Connection status indicator in UI
+  - Broadcast updates to all connected players/spectators
+  - HTTP fallback for compatibility
+  - Ping/pong keepalive mechanism
+  - Support for concurrent connections to same game
+
+### Added
+- Comprehensive concurrent action handling system
+  - Added AsyncIO locking to prevent race conditions in action processing
+  - Implemented request ID tracking and deduplication to prevent duplicate actions
+  - Added ActionRequestManager class in frontend to queue and throttle requests
+  - Added chip movement audit trail for debugging chip integrity issues
+  - Enhanced state validation framework with comprehensive checks
+  - Created test suite for concurrent action scenarios
+  - Implemented state snapshot and rollback mechanism for error recovery
+  - Added game monitoring system with metrics and alerting
+  - Created debug tools for live state inspection and troubleshooting
+  - Added formal Pydantic models for request tracking and state management
+
+### Added
 - Hand history tracking for poker game
   - Records all completed hands with board cards, winners, and pot amounts
   - Accessible via 📜 Hand History button during gameplay

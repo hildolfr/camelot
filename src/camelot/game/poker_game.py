@@ -183,8 +183,12 @@ class PokerGame:
         self._last_phase_change = None  # Track rapid phase transitions
         self._processing_action = False  # Prevent concurrent action processing
         self._action_lock = asyncio.Lock()  # Thread-safe action processing
-        self._processed_actions = set()  # Track processed actions to prevent duplicates
-        self._action_counter = 0  # Unique action identifier
+        self._processed_requests = {}  # Track processed requests by ID {request_id: (timestamp, result)}
+        self._request_cache_ttl = 5.0  # 5 seconds TTL for request cache
+        self._state_version = 0  # For optimistic locking
+        self._chip_movements = []  # Audit trail for all chip movements
+        self._state_snapshots = {}  # Store state snapshots for rollback {version: state}
+        self._max_snapshots = 10  # Keep last 10 snapshots
         
         logger.info(f"\n{'='*60}\nINITIALIZING NEW GAME: {self.game_id}")
         logger.info(f"Config: {json.dumps(game_config, indent=2)}")
@@ -297,10 +301,7 @@ class PokerGame:
             for p in self.state.players:
                 logger.error(f"  {p.name}: stack=${p.stack}")
         
-        # Reset phase to WAITING at the start of new hand
-        self.state.phase = GamePhase.WAITING
-        
-        # Reset betting state
+        # Reset betting state (but don't set phase yet - we'll set it to PRE_FLOP later)
         self.state.current_bet = 0
         self.state.min_raise = self.state.big_blind
         
@@ -363,18 +364,26 @@ class PokerGame:
                 if player.stack > 0:  # Only deal to players with chips
                     card = self.state.deck.pop()
                     player.hole_cards.append(card)
+                    # Log what we're dealing
+                    logger.info(f"Dealing card {i} to {player.name}: {'[hidden]' if player.is_ai else card}")
                     animations.append({
                         "type": "deal_card",
                         "player_id": player.id,
                         "card_index": i,
                         "is_hero": not player.is_ai,
+                        "card": card if not player.is_ai else None,  # Include card data for hero
                         "delay": delay
                     })
                     delay += 100
                 else:
                     logger.info(f"Skipping deal for {player.name} - no chips remaining")
         
-        # Set action to first player after BB
+        # Set phase and betting amounts BEFORE determining who acts first
+        self.state.phase = GamePhase.PRE_FLOP
+        self.state.current_bet = self.state.big_blind
+        self.state.min_raise = self.state.big_blind
+        
+        # Now set action to first player after BB
         self.state.action_on = self._get_first_to_act_position()
         
         logger.info(f"\nHAND SETUP COMPLETE:")
@@ -385,10 +394,6 @@ class PokerGame:
         logger.info(f"  First to act: position {self.state.action_on} ({self.state.players[self.state.action_on].name if self.state.action_on >= 0 else 'None'})")
         logger.info(f"  Current bet: ${self.state.current_bet}")
         logger.info(f"  Phase: {self.state.phase.name}")
-        
-        self.state.phase = GamePhase.PRE_FLOP
-        self.state.current_bet = self.state.big_blind
-        self.state.min_raise = self.state.big_blind
         
         # Ensure board is cleared for new hand (double check)
         if len(self.state.board_cards) > 0:
@@ -407,6 +412,11 @@ class PokerGame:
         
         self.state.pending_animations = animations
         
+        # Log hero's hole cards for debugging
+        hero = next((p for p in self.state.players if not p.is_ai), None)
+        if hero:
+            logger.info(f"Hero's hole cards after dealing: {hero.hole_cards}")
+        
         return {
             "success": True,
             "state": self._serialize_state(),
@@ -414,20 +424,71 @@ class PokerGame:
             "message": f"Hand #{self.state.hand_number} - Blinds {self.state.small_blind}/{self.state.big_blind}"
         }
     
-    def process_action(self, player_id: str, action: PlayerAction, amount: int = 0) -> Dict[str, Any]:
-        """Process a player action with animations"""
-        logger.info(f"\n{'='*50}\nACTION: {player_id} -> {action.value} (${amount})\n{'='*50}")
+    async def process_action(self, player_id: str, action: PlayerAction, amount: int = 0, request_id: str = None) -> Dict[str, Any]:
+        """Process a player action with animations - now properly async with locking"""
+        logger.info(f"\n{'='*50}\nACTION: {player_id} -> {action.value} (${amount}) [request_id: {request_id}]\n{'='*50}")
         
-        # Prevent concurrent action processing
-        if self._processing_action:
-            logger.warning(f"Action already being processed, rejecting {player_id}'s {action.value}")
-            return {"success": False, "error": "Another action is being processed"}
+        # Check for duplicate request
+        if request_id:
+            # Clean up old requests
+            self._cleanup_request_cache()
+            
+            # Check if we've already processed this request
+            if request_id in self._processed_requests:
+                timestamp, cached_result = self._processed_requests[request_id]
+                logger.warning(f"Duplicate request {request_id} detected, returning cached result")
+                return cached_result
         
-        self._processing_action = True
-        try:
-            return self._do_process_action(player_id, action, amount)
-        finally:
-            self._processing_action = False
+        # Acquire lock for action processing
+        async with self._action_lock:
+            logger.info(f"Lock acquired for {player_id}'s {action.value}")
+            
+            # Double-check game state after acquiring lock
+            if self.state.phase == GamePhase.GAME_OVER:
+                logger.error(f"Game is over, rejecting action from {player_id}")
+                return {"success": False, "error": "Game is over"}
+            
+            # Create state snapshot before processing
+            state_version_before = self._state_version
+            snapshot = self._create_state_snapshot()
+            
+            # Validate state before action
+            validation_before = self._validate_game_state()
+            if not validation_before["valid"]:
+                logger.error(f"State validation errors BEFORE action: {validation_before['errors']}")
+            if validation_before["warnings"]:
+                logger.warning(f"State validation warnings BEFORE action: {validation_before['warnings']}")
+            
+            try:
+                result = self._do_process_action(player_id, action, amount)
+                
+                # If successful, increment state version and validate
+                if result.get("success"):
+                    self._state_version += 1
+                    
+                    # Validate state after action
+                    validation_after = self._validate_game_state()
+                    if not validation_after["valid"]:
+                        logger.error(f"State validation errors AFTER action: {validation_after['errors']}")
+                        # Add validation errors to result
+                        result["validation_errors"] = validation_after["errors"]
+                    if validation_after["warnings"]:
+                        logger.warning(f"State validation warnings AFTER action: {validation_after['warnings']}")
+                    
+                    # Cache successful result if request_id provided
+                    if request_id:
+                        self._processed_requests[request_id] = (time.time(), result)
+                
+                return result
+            except Exception as e:
+                logger.error(f"Error processing action: {e}")
+                logger.error(f"Rolling back to state version {state_version_before}")
+                # Restore state from snapshot
+                if self._restore_state_snapshot(state_version_before):
+                    logger.info("Successfully rolled back state")
+                else:
+                    logger.error("Failed to rollback state - game may be corrupted!")
+                return {"success": False, "error": str(e)}
     
     def _do_process_action(self, player_id: str, action: PlayerAction, amount: int = 0) -> Dict[str, Any]:
         """Internal action processing"""
@@ -595,11 +656,53 @@ class PokerGame:
             # Everyone else folded - immediate win
             logger.info("All opponents folded - awarding pot to remaining player")
             logger.info(f"Current board: {self.state.board_cards} (phase: {self.state.phase.name})")
-            # Calculate final pots before showdown
+            # Calculate final pots
             self._calculate_pots()
-            self.state.phase = GamePhase.SHOWDOWN
-            showdown_result = self._resolve_showdown()
-            animations.extend(showdown_result["animations"])
+            # Award pot to remaining player WITHOUT going to showdown
+            winner = players_in_hand[0]
+            total_won = 0
+            
+            for pot in self.state.pots:
+                if winner.id in pot.eligible_players:
+                    stack_before = winner.stack
+                    winner.stack += pot.amount
+                    total_won += pot.amount
+                    logger.info(f"{winner.name} wins pot of ${pot.amount} (all opponents folded)")
+                    self._record_chip_movement(winner.id, pot.amount, "pot_won_fold", stack_before)
+            
+            if total_won > 0:
+                winner._won_amount = total_won
+                winner._winning_hand = "All opponents folded"
+                animations.append({
+                    "type": "award_pot",
+                    "winner_id": winner.id,
+                    "amount": total_won,
+                    "delay": 500,
+                    "stack_before_win": winner.stack - total_won
+                })
+            
+            # Clear pots
+            self.state.pots = []
+            
+            # Mark hand as complete
+            animations.append({
+                "type": "hand_complete",
+                "delay": 1000
+            })
+            
+            # Record hand history
+            self._record_hand_history()
+            
+            # Clear all player bets
+            for p in self.state.players:
+                p.total_bet_this_hand = 0
+                p.current_bet = 0
+            
+            # Set phase to GAME_OVER (for this hand)
+            self.state.phase = GamePhase.GAME_OVER
+            
+            # Clear action_on since hand is over
+            self.state.action_on = -1
         elif len(players_in_hand) == 0:
             # This should never happen
             logger.error("ERROR: No players in hand! This should never happen!")
@@ -1010,10 +1113,13 @@ class PokerGame:
             for pot in self.state.pots:
                 if winner.id in pot.eligible_players:
                     logger.info(f"Before awarding pot: {winner.name} stack=${winner.stack}")
+                    stack_before = winner.stack
                     winner.stack += pot.amount
                     total_won += pot.amount
                     logger.info(f"{winner.name} wins pot of ${pot.amount}")
                     logger.info(f"After awarding pot: {winner.name} stack=${winner.stack}")
+                    # Record chip movement
+                    self._record_chip_movement(winner.id, pot.amount, "pot_won_fold", stack_before)
             
             if total_won > 0:
                 # Track winner info for hand history
@@ -1079,8 +1185,11 @@ class PokerGame:
                         winner = next(p for p in eligible_in_pot if p.id == winner_id)
                         # First winner gets any remainder from integer division
                         award_amount = split_amount + (remainder if j == 0 else 0)
+                        stack_before = winner.stack
                         winner.stack += award_amount
                         player_winnings[winner_id] += award_amount
+                        # Record chip movement
+                        self._record_chip_movement(winner_id, award_amount, f"pot_{i+1}_won_showdown", stack_before)
                         
                         # Track winner info for hand history
                         if not hasattr(winner, '_won_amount'):
@@ -1177,11 +1286,17 @@ class PokerGame:
         logger.info(f"_place_bet: {player.name} betting ${actual_bet} (requested ${amount})")
         logger.info(f"Before: stack=${player.stack}, current_bet=${player.current_bet}")
         
+        # Record state before the bet
+        stack_before = player.stack
+        
         player.stack -= actual_bet
         player.current_bet += actual_bet
         player.total_bet_this_hand += actual_bet
         
         logger.info(f"After: stack=${player.stack}, current_bet=${player.current_bet}, total_bet_this_hand=${player.total_bet_this_hand}")
+        
+        # Record chip movement
+        self._record_chip_movement(player.id, -actual_bet, f"bet_{self.state.phase.name}", stack_before)
         
         # Don't add to pot here - we'll calculate pots when betting round ends
         # This allows proper side pot calculation
@@ -1300,9 +1415,12 @@ class PokerGame:
                 # Return uncalled portion to the winner IMMEDIATELY
                 uncalled = winner.total_bet_this_hand - max_called
                 if uncalled > 0:
+                    stack_before = winner.stack
                     winner.stack += uncalled
                     logger.info(f"Returned uncalled bet of ${uncalled} to {winner.name}")
                     logger.info(f"{winner.name} stack after uncalled return: ${winner.stack}")
+                    # Record chip movement
+                    self._record_chip_movement(winner.id, uncalled, "uncalled_bet_return", stack_before)
                 
                 # CRITICAL: Clear bets for all players to prevent double-counting
                 for p in self.state.players:
@@ -1311,7 +1429,10 @@ class PokerGame:
                 # No one else had any bets (e.g., everyone folded pre-flop to BB)
                 # Winner just gets their own bet back
                 self.state.pots = []
+                stack_before = winner.stack
                 winner.stack += winner.total_bet_this_hand
+                # Record chip movement
+                self._record_chip_movement(winner.id, winner.total_bet_this_hand, "own_bet_return", stack_before)
                 logger.info(f"No callers. Returned ${winner.total_bet_this_hand} to {winner.name}")
                 # Clear all bets
                 for p in self.state.players:
@@ -1524,10 +1645,178 @@ class PokerGame:
         """Get the complete hand history"""
         return self.hand_history.copy()
     
+    def _cleanup_request_cache(self):
+        """Remove expired requests from cache"""
+        current_time = time.time()
+        expired_requests = [
+            req_id for req_id, (timestamp, _) in self._processed_requests.items()
+            if current_time - timestamp > self._request_cache_ttl
+        ]
+        for req_id in expired_requests:
+            del self._processed_requests[req_id]
+            logger.debug(f"Cleaned up expired request: {req_id}")
+    
+    def _validate_chip_integrity(self, checkpoint: str):
+        """Validate that total chips in play match expected amount"""
+        total_chips = sum(p.stack for p in self.state.players)
+        # Add chips currently bet (both current round and total for hand)
+        for p in self.state.players:
+            total_chips += p.total_bet_this_hand  # Use total bet for entire hand
+            
+        expected_total = self.config['heroStack'] * self.config['bigBlind']
+        for stack in self.config['opponentStacks']:
+            expected_total += stack * self.config['bigBlind']
+            
+        if total_chips != expected_total:
+            logger.error(f"CHIP INTEGRITY ERROR at {checkpoint}!")
+            logger.error(f"Expected ${expected_total}, found ${total_chips}")
+            logger.error(f"Difference: ${total_chips - expected_total}")
+            logger.error("Player details:")
+            for p in self.state.players:
+                logger.error(f"  {p.name}: stack=${p.stack}, current_bet=${p.current_bet}, total_bet_this_hand=${p.total_bet_this_hand}")
+            # Log last few chip movements
+            if self._chip_movements:
+                logger.error("Recent chip movements:")
+                for movement in self._chip_movements[-5:]:
+                    logger.error(f"  {movement}")
+    
+    def _record_chip_movement(self, player_id: str, amount: int, reason: str, state_before: int):
+        """Record chip movement for audit trail"""
+        player = self._get_player_by_id(player_id)
+        if player:
+            movement = {
+                "timestamp": time.time(),
+                "hand_number": self.state.hand_number,
+                "player_id": player_id,
+                "player_name": player.name,
+                "amount": amount,
+                "reason": reason,
+                "stack_before": state_before,
+                "stack_after": player.stack,
+                "state_version": self._state_version
+            }
+            self._chip_movements.append(movement)
+            logger.debug(f"Chip movement: {player.name} {amount:+d} ({reason}) [{state_before} -> {player.stack}]")
+    
+    def _validate_game_state(self) -> Dict[str, Any]:
+        """Comprehensive state validation"""
+        errors = []
+        warnings = []
+        
+        # 1. Validate chip integrity
+        total_chips = sum(p.stack for p in self.state.players)
+        for p in self.state.players:
+            total_chips += p.total_bet_this_hand  # Use total bet for entire hand
+            
+        expected_total = self.config['heroStack'] * self.config['bigBlind']
+        for stack in self.config['opponentStacks']:
+            expected_total += stack * self.config['bigBlind']
+            
+        if total_chips != expected_total:
+            errors.append(f"Chip integrity error: expected ${expected_total}, found ${total_chips}")
+        
+        # 2. Validate player states
+        for player in self.state.players:
+            if player.stack < 0:
+                errors.append(f"{player.name} has negative stack: ${player.stack}")
+            if player.current_bet < 0:
+                errors.append(f"{player.name} has negative current bet: ${player.current_bet}")
+            if player.has_folded and player.current_bet > 0:
+                warnings.append(f"{player.name} has folded but still has bet: ${player.current_bet}")
+        
+        # 3. Validate action position
+        if self.state.phase not in [GamePhase.GAME_OVER, GamePhase.WAITING]:
+            if self.state.action_on < 0 or self.state.action_on >= len(self.state.players):
+                errors.append(f"Invalid action position: {self.state.action_on}")
+            else:
+                action_player = self.state.players[self.state.action_on]
+                if action_player.has_folded:
+                    errors.append(f"Action is on folded player: {action_player.name}")
+                if action_player.stack == 0:
+                    warnings.append(f"Action is on all-in player: {action_player.name}")
+        
+        # 4. Validate betting state
+        if self.state.current_bet < 0:
+            errors.append(f"Current bet is negative: ${self.state.current_bet}")
+        if self.state.min_raise < self.state.big_blind:
+            warnings.append(f"Min raise ({self.state.min_raise}) is less than big blind ({self.state.big_blind})")
+        
+        # 5. Validate phase consistency
+        board_count = len(self.state.board_cards)
+        expected_cards = {
+            GamePhase.PRE_FLOP: 0,
+            GamePhase.FLOP: 3,
+            GamePhase.TURN: 4,
+            GamePhase.RIVER: 5,
+            GamePhase.SHOWDOWN: 5,
+            GamePhase.GAME_OVER: 5,
+            GamePhase.WAITING: 0
+        }
+        if self.state.phase in expected_cards:
+            expected = expected_cards[self.state.phase]
+            if board_count != expected and not (self.state.phase == GamePhase.GAME_OVER and board_count < 5):
+                errors.append(f"Phase {self.state.phase.name} expects {expected} board cards, found {board_count}")
+        
+        return {
+            "valid": len(errors) == 0,
+            "errors": errors,
+            "warnings": warnings,
+            "state_version": self._state_version
+        }
+    
+    def _create_state_snapshot(self) -> Dict[str, Any]:
+        """Create a deep copy snapshot of the current game state"""
+        import copy
+        
+        snapshot = {
+            "state": copy.deepcopy(self.state),
+            "state_version": self._state_version,
+            "timestamp": time.time(),
+            "chip_movements_count": len(self._chip_movements)
+        }
+        
+        # Store snapshot
+        self._state_snapshots[self._state_version] = snapshot
+        
+        # Clean up old snapshots if we have too many
+        if len(self._state_snapshots) > self._max_snapshots:
+            oldest_versions = sorted(self._state_snapshots.keys())[:-self._max_snapshots]
+            for version in oldest_versions:
+                del self._state_snapshots[version]
+                logger.debug(f"Removed old snapshot version {version}")
+        
+        logger.debug(f"Created state snapshot v{self._state_version}, total snapshots: {len(self._state_snapshots)}")
+        return snapshot
+    
+    def _restore_state_snapshot(self, version: int) -> bool:
+        """Restore game state from a snapshot"""
+        if version not in self._state_snapshots:
+            logger.error(f"Snapshot version {version} not found")
+            return False
+        
+        import copy
+        snapshot = self._state_snapshots[version]
+        
+        # Restore state
+        self.state = copy.deepcopy(snapshot["state"])
+        self._state_version = snapshot["state_version"]
+        
+        # Trim chip movements to match snapshot
+        snapshot_movements_count = snapshot["chip_movements_count"]
+        self._chip_movements = self._chip_movements[:snapshot_movements_count]
+        
+        logger.info(f"Restored state to version {version} from {time.time() - snapshot['timestamp']:.2f}s ago")
+        return True
+    
     def _serialize_state(self) -> Dict[str, Any]:
         """Serialize game state for client"""
         # Calculate current pot total (all money bet in this hand)
         current_pot_total = 0
+        
+        # Debug logging for hole cards
+        for p in self.state.players:
+            if p.id == "hero":
+                logger.info(f"Serializing hero: is_ai={p.is_ai}, hole_cards={p.hole_cards}, phase={self.state.phase.name}")
         
         # Since we only calculate pots at showdown, during betting we need to
         # show the total of all bets made this hand

@@ -6,6 +6,233 @@ let gameId = null;
 let soundEnabled = true;
 let animationQueue = [];
 let isAnimating = false;
+let gameWebSocket = null;  // WebSocket connection
+let processedAnimationIds = new Set();  // Track processed animations to prevent duplicates
+let animationIdCounter = 0;  // Generate unique IDs for animations
+
+// WebSocket connection management
+class GameWebSocket {
+    constructor(gameId, playerId) {
+        this.gameId = gameId;
+        this.playerId = playerId;
+        this.ws = null;
+        this.reconnectAttempts = 0;
+        this.maxReconnectAttempts = 5;
+        this.reconnectDelay = 1000; // Start with 1 second
+        this.messageQueue = [];
+        this.isConnected = false;
+        this.pingInterval = null;
+        this.connectionListeners = [];
+    }
+    
+    connect() {
+        console.log(`Connecting to WebSocket for game ${this.gameId}...`);
+        
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/api/game/ws/${this.gameId}/${this.playerId}`;
+        
+        try {
+            this.ws = new WebSocket(wsUrl);
+            
+            this.ws.onopen = () => {
+                console.log('WebSocket connected');
+                this.isConnected = true;
+                this.reconnectAttempts = 0;
+                this.reconnectDelay = 1000;
+                
+                // Flush any queued messages
+                this.flushMessageQueue();
+                
+                // Start ping interval
+                this.startPingInterval();
+                
+                // Notify listeners
+                this.notifyConnectionChange(true);
+            };
+            
+            this.ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    this.handleMessage(data);
+                } catch (e) {
+                    console.error('Error parsing WebSocket message:', e);
+                }
+            };
+            
+            this.ws.onclose = (event) => {
+                console.log('WebSocket disconnected:', event.code, event.reason);
+                this.isConnected = false;
+                this.stopPingInterval();
+                this.notifyConnectionChange(false);
+                
+                // Attempt reconnection if not a normal closure
+                if (event.code !== 1000 && event.code !== 1001) {
+                    this.reconnect();
+                }
+            };
+            
+            this.ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+            
+        } catch (e) {
+            console.error('Failed to create WebSocket:', e);
+            this.reconnect();
+        }
+    }
+    
+    reconnect() {
+        if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+            console.error('Max reconnection attempts reached');
+            showConnectionError();
+            return;
+        }
+        
+        this.reconnectAttempts++;
+        console.log(`Reconnecting in ${this.reconnectDelay}ms... (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+        
+        setTimeout(() => {
+            this.connect();
+        }, this.reconnectDelay);
+        
+        // Exponential backoff
+        this.reconnectDelay = Math.min(this.reconnectDelay * 2, 30000); // Max 30 seconds
+    }
+    
+    disconnect() {
+        this.stopPingInterval();
+        if (this.ws) {
+            this.ws.close(1000, 'Client disconnect');
+            this.ws = null;
+        }
+        this.isConnected = false;
+    }
+    
+    send(message) {
+        if (this.isConnected && this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify(message));
+        } else {
+            // Queue message if not connected
+            this.messageQueue.push(message);
+            console.log('Message queued (not connected):', message.type);
+        }
+    }
+    
+    sendAction(action, amount = 0, requestId = null) {
+        this.send({
+            type: 'action',
+            data: {
+                action: action,
+                amount: amount,
+                request_id: requestId || actionRequestManager.generateRequestId()
+            }
+        });
+    }
+    
+    flushMessageQueue() {
+        while (this.messageQueue.length > 0 && this.isConnected) {
+            const message = this.messageQueue.shift();
+            this.send(message);
+        }
+    }
+    
+    startPingInterval() {
+        this.pingInterval = setInterval(() => {
+            if (this.isConnected) {
+                this.send({
+                    type: 'ping',
+                    timestamp: Date.now()
+                });
+            }
+        }, 30000); // Ping every 30 seconds
+    }
+    
+    stopPingInterval() {
+        if (this.pingInterval) {
+            clearInterval(this.pingInterval);
+            this.pingInterval = null;
+        }
+    }
+    
+    handleMessage(data) {
+        console.log('WebSocket message:', data.type);
+        
+        switch (data.type) {
+            case 'connection_established':
+                // Initial connection, update game state
+                if (data.game_state) {
+                    gameState = data.game_state;
+                    console.log('Connection established, received game state:', gameState);
+                    const hero = gameState.players.find(p => !p.is_ai);
+                    console.log('Hero player:', hero);
+                    console.log('Hero hole cards:', hero?.hole_cards);
+                    updateUI();
+                }
+                break;
+                
+            case 'game_update':
+                // Game state update from action
+                if (data.state) {
+                    gameState = data.state;
+                    const hero = gameState.players.find(p => !p.is_ai);
+                    console.log('Game update - Hero hole cards:', hero?.hole_cards);
+                    if (data.animations && data.source !== 'ai_action') {
+                        // Only queue animations if not from AI action (which already queued them)
+                        queueAnimations(data.animations, 'websocket');
+                    }
+                    updateUI();
+                }
+                break;
+                
+            case 'new_hand':
+                // New hand started
+                if (data.state) {
+                    gameState = data.state;
+                    if (data.animations) {
+                        queueAnimations(data.animations, 'websocket');
+                    }
+                    updateUI();
+                }
+                break;
+                
+            case 'player_connected':
+                console.log(`Player ${data.player_id} connected`);
+                break;
+                
+            case 'player_disconnected':
+                console.log(`Player ${data.player_id} disconnected`);
+                break;
+                
+            case 'action_error':
+                console.error('Action error:', data.error);
+                // Re-enable controls on error
+                enableBettingControls();
+                alert(`Action failed: ${data.error}`);
+                break;
+                
+            case 'pong':
+                // Pong response, connection is alive
+                break;
+                
+            default:
+                console.warn('Unknown WebSocket message type:', data.type);
+        }
+    }
+    
+    addConnectionListener(listener) {
+        this.connectionListeners.push(listener);
+    }
+    
+    notifyConnectionChange(connected) {
+        this.connectionListeners.forEach(listener => {
+            try {
+                listener(connected);
+            } catch (e) {
+                console.error('Error in connection listener:', e);
+            }
+        });
+    }
+}
 
 // Sound effects (using Web Audio API)
 const sounds = {
@@ -221,6 +448,220 @@ function setupBugReportListeners() {
     console.log('Bug report listeners setup complete');
 }
 
+// Update connection status indicator
+function updateConnectionStatus(connected) {
+    // Add a connection indicator to the UI
+    let indicator = document.getElementById('connection-status');
+    if (!indicator) {
+        indicator = document.createElement('div');
+        indicator.id = 'connection-status';
+        indicator.style.cssText = `
+            position: fixed;
+            top: 70px;
+            right: 20px;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        `;
+        document.body.appendChild(indicator);
+    }
+    
+    if (connected) {
+        indicator.innerHTML = '<span style="width: 8px; height: 8px; background: #4CAF50; border-radius: 50%; display: inline-block;"></span> Connected';
+        indicator.style.background = 'rgba(76, 175, 80, 0.2)';
+        indicator.style.color = '#4CAF50';
+    } else {
+        indicator.innerHTML = '<span style="width: 8px; height: 8px; background: #f44336; border-radius: 50%; display: inline-block;"></span> Disconnected';
+        indicator.style.background = 'rgba(244, 67, 54, 0.2)';
+        indicator.style.color = '#f44336';
+    }
+}
+
+// Show connection error message
+function showConnectionError() {
+    const errorDiv = document.createElement('div');
+    errorDiv.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(244, 67, 54, 0.9);
+        color: white;
+        padding: 20px;
+        border-radius: 10px;
+        z-index: 10000;
+        text-align: center;
+    `;
+    errorDiv.innerHTML = `
+        <h3>Connection Lost</h3>
+        <p>Unable to connect to the game server.</p>
+        <button onclick="location.reload()" style="
+            background: white;
+            color: #333;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+        ">Reload Page</button>
+    `;
+    document.body.appendChild(errorDiv);
+}
+
+// Update board cards display
+function updateBoardCards() {
+    const communityCards = document.getElementById('communityCards');
+    if (!communityCards || !gameState) return;
+    
+    // Clear existing cards
+    communityCards.innerHTML = '';
+    
+    // Add board cards
+    if (gameState.board_cards && gameState.board_cards.length > 0) {
+        gameState.board_cards.forEach((card, index) => {
+            const cardDiv = document.createElement('div');
+            cardDiv.className = 'community-card';
+            cardDiv.innerHTML = formatCard(card);
+            if (card.includes('♥') || card.includes('♦')) {
+                cardDiv.classList.add('red');
+            }
+            communityCards.appendChild(cardDiv);
+        });
+    }
+}
+
+// Update individual player's UI
+function updatePlayerUI(player) {
+    // Update stack display
+    updatePlayerStack(player.id, player.stack);
+    
+    // Update fold status
+    const seat = document.getElementById(`seat_${player.id}`);
+    if (seat) {
+        if (player.has_folded) {
+            seat.classList.add('folded');
+        } else {
+            seat.classList.remove('folded');
+        }
+    }
+    
+    // Update player info (name, stack)
+    const playerInfo = document.getElementById(`player_${player.id}`);
+    if (playerInfo) {
+        playerInfo.innerHTML = `
+            <div class="player-name">${player.name}</div>
+            <div class="player-stack">$${player.stack}</div>
+        `;
+    }
+}
+
+// Update UI with current game state - including hero card visibility fixes
+function updateUIWithCardFixes() {
+    if (!gameState) return;
+    
+    // Update each player's UI
+    gameState.players.forEach(player => {
+        updatePlayerUI(player);
+    });
+    
+    // Update pot display
+    updatePotDisplay();
+    
+    // Update board cards
+    updateBoardCards();
+    
+    // Ensure hero cards are visible if they exist in state
+    const hero = gameState.players.find(p => !p.is_ai);
+    if (hero && hero.hole_cards && hero.hole_cards.length === 2) {
+        console.log('updateUIWithCardFixes - hero has cards:', hero.hole_cards);
+        const cardsContainer = document.getElementById(`cards_hero`);
+        if (cardsContainer) {
+            console.log('Found cards container for hero');
+            // First check for cards that need flipping
+            const needsFlipCards = cardsContainer.querySelectorAll('[data-needs-flip="true"]');
+            needsFlipCards.forEach(card => {
+                const cardIndex = parseInt(card.getAttribute('data-card-index'));
+                if (!isNaN(cardIndex) && hero.hole_cards[cardIndex]) {
+                    console.log(`Flipping previously unflipped card ${cardIndex}: ${hero.hole_cards[cardIndex]}`);
+                    card.classList.remove('face-down');
+                    card.innerHTML = formatCard(hero.hole_cards[cardIndex]);
+                    if (hero.hole_cards[cardIndex].includes('♥') || hero.hole_cards[cardIndex].includes('♦')) {
+                        card.classList.add('red');
+                    }
+                    card.removeAttribute('data-needs-flip');
+                    card.removeAttribute('data-card-index');
+                }
+            });
+            
+            // Then check if we need to create cards from scratch OR if existing cards are face-down
+            const allCards = cardsContainer.querySelectorAll('.hole-card');
+            const visibleCards = cardsContainer.querySelectorAll('.hole-card:not(.face-down)');
+            
+            // If we have cards but they're face-down, flip them
+            if (allCards.length === 2 && visibleCards.length < 2) {
+                console.warn('Hero cards are face-down, flipping them now');
+                allCards.forEach((card, index) => {
+                    if (card.classList.contains('face-down') && hero.hole_cards[index]) {
+                        card.classList.remove('face-down');
+                        card.innerHTML = formatCard(hero.hole_cards[index]);
+                        if (hero.hole_cards[index].includes('♥') || hero.hole_cards[index].includes('♦')) {
+                            card.classList.add('red');
+                        }
+                    }
+                });
+            } else if (cardsContainer.children.length < 2) {
+                // Cards exist in state but aren't shown, fix the display
+                console.warn('Hero has cards in state but they are not visible, creating display');
+                console.log('Container has', cardsContainer.children.length, 'children, need 2');
+                cardsContainer.innerHTML = '';
+                hero.hole_cards.forEach((card, index) => {
+                    const cardEl = document.createElement('div');
+                    cardEl.className = 'hole-card dealing';
+                    cardEl.innerHTML = formatCard(card);
+                    if (card.includes('♥') || card.includes('♦')) {
+                        cardEl.classList.add('red');
+                    }
+                    cardsContainer.appendChild(cardEl);
+                    console.log('Created card element for:', card);
+                });
+            }
+        }
+    }
+    
+    // Update board cards
+    updateBoardCards();
+    
+    // Update betting controls
+    updateBettingControls();
+    
+    // Update dealer button
+    updateDealerButton();
+    
+    // Trigger AI action if it's AI's turn
+    if (gameState.action_on >= 0 && gameState.action_on < gameState.players.length) {
+        const activePlayer = gameState.players[gameState.action_on];
+        console.log('AI action check:', {
+            action_on: gameState.action_on,
+            player_id: activePlayer?.id,
+            is_ai: activePlayer?.is_ai,
+            has_folded: activePlayer?.has_folded,
+            stack: activePlayer?.stack,
+            should_trigger: activePlayer && activePlayer.is_ai && !activePlayer.has_folded && activePlayer.stack > 0
+        });
+        if (activePlayer && activePlayer.is_ai && !activePlayer.has_folded && activePlayer.stack > 0) {
+            // Delay AI action for realism
+            console.log('Triggering AI action in 1.5-3 seconds...');
+            setTimeout(() => triggerAIAction(), 1500 + Math.random() * 1500);
+        }
+    } else {
+        console.log('No valid action_on:', gameState.action_on);
+    }
+}
+
 // Create animated background particles
 function createParticles() {
     const particlesContainer = document.getElementById('particles');
@@ -304,12 +745,36 @@ async function startNewGame(config) {
             
             // Process initial animations
             if (data.animations) {
-                queueAnimations(data.animations);
+                queueAnimations(data.animations, 'http_start');
             }
             
-            // Start first hand after a delay
-            console.log('Starting first hand in 2 seconds...');
-            setTimeout(() => startNewHand(), 2000);
+            // Establish WebSocket connection
+            const hero = gameState.players.find(p => !p.is_ai);
+            if (hero) {
+                console.log('Establishing WebSocket connection...');
+                gameWebSocket = new GameWebSocket(gameId, hero.id);
+                
+                // Add connection status listener
+                gameWebSocket.addConnectionListener((connected) => {
+                    updateConnectionStatus(connected);
+                });
+                
+                gameWebSocket.connect();
+            }
+            
+            // Start first hand after a delay, ensuring table is fully set up
+            console.log('Starting first hand in 2.5 seconds...');
+            setTimeout(() => {
+                // Verify card containers exist before starting
+                const heroCardContainer = document.getElementById('cards_hero');
+                console.log('Checking for hero card container:', heroCardContainer ? 'found' : 'NOT FOUND');
+                
+                // List all card containers for debugging
+                const allCardContainers = document.querySelectorAll('[id^="cards_"]');
+                console.log('All card containers:', Array.from(allCardContainers).map(c => c.id));
+                
+                startNewHand();
+            }, 2500);
         } else {
             console.error('Failed to start game:', data.error);
         }
@@ -418,6 +883,9 @@ async function startNewHand() {
         animationQueue = [];
         isAnimating = false;
         
+        // Clear processed animations for new hand to prevent cross-hand duplicates
+        processedAnimationIds.clear();
+        
         // Clear the table before starting new hand
         clearTableForNewHand();
         
@@ -457,7 +925,7 @@ async function startNewHand() {
             updateDealerButton();
             
             if (data.animations && data.animations.length > 0) {
-                queueAnimations(data.animations);
+                queueAnimations(data.animations, 'http_new_hand');
             } else {
                 console.error('No animations provided for new hand!');
                 // Force UI update even without animations
@@ -559,9 +1027,51 @@ function clearTableForNewHand() {
 }
 
 // Queue animations for processing
-function queueAnimations(animations) {
-    animationQueue.push(...animations);
-    processAnimationQueue();
+function queueAnimations(animations, source = 'http') {
+    // Create a signature for each animation based on its content
+    const createAnimationSignature = (anim) => {
+        // For bet animations (includes all_in), create signature based on player and amount
+        if (anim.type === 'bet') {
+            return `${anim.type}_${anim.player_id}_${anim.amount}_${anim.action}`;
+        }
+        // For other animations, use type and player_id if available
+        return `${anim.type}_${anim.player_id || ''}_${anim.delay || 0}`;
+    };
+    
+    // Add unique IDs to animations if they don't have them
+    const animationsWithIds = animations.map(anim => {
+        if (!anim.id) {
+            anim.id = `${source}_${animationIdCounter++}_${anim.type}`;
+        }
+        // Also create a content signature
+        anim.signature = createAnimationSignature(anim);
+        return anim;
+    });
+    
+    // Filter out animations we've already processed (by ID or signature)
+    const newAnimations = animationsWithIds.filter(anim => {
+        // Check both ID and signature to prevent duplicates
+        if (processedAnimationIds.has(anim.id) || processedAnimationIds.has(anim.signature)) {
+            console.log('Skipping duplicate animation:', anim.type, anim.player_id, source);
+            return false;
+        }
+        processedAnimationIds.add(anim.id);
+        processedAnimationIds.add(anim.signature);
+        return true;
+    });
+    
+    if (newAnimations.length > 0) {
+        console.log(`Queueing ${newAnimations.length} animations from ${source}`);
+        animationQueue.push(...newAnimations);
+        processAnimationQueue();
+    }
+    
+    // Clean up old animation IDs to prevent memory leak
+    if (processedAnimationIds.size > 200) {
+        // Keep only the most recent 100 entries
+        const entries = Array.from(processedAnimationIds);
+        processedAnimationIds = new Set(entries.slice(-100));
+    }
 }
 
 // Process animation queue
@@ -603,6 +1113,24 @@ async function processAnimationQueue() {
     console.log('Animations complete, updating UI...');
     console.log('Current game phase:', gameState?.phase);
     updateUI();
+    
+    // Final check: ensure hero cards are visible if we just dealt them
+    const hero = gameState?.players?.find(p => !p.is_ai);
+    if (hero && hero.hole_cards && hero.hole_cards.length === 2) {
+        const heroCards = document.querySelectorAll('#cards_hero .hole-card.face-down');
+        if (heroCards.length > 0) {
+            console.warn('Hero cards still face-down after animations, forcing flip');
+            heroCards.forEach((card, index) => {
+                if (hero.hole_cards[index]) {
+                    card.classList.remove('face-down');
+                    card.innerHTML = formatCard(hero.hole_cards[index]);
+                    if (hero.hole_cards[index].includes('♥') || hero.hole_cards[index].includes('♦')) {
+                        card.classList.add('red');
+                    }
+                }
+            });
+        }
+    }
 }
 
 // Play individual animation
@@ -716,14 +1244,25 @@ async function playAnimation(animation) {
             break;
             
         case 'request_next_cards':
-            // Request to advance phase and get cards (for all-in situations)
-            console.log('Requesting next phase cards:', animation.phase);
-            await advanceAllInPhase();
+            // In all-in situation, need to advance phase then deal cards
+            console.log('All-in: Need to advance to', animation.phase, 'and deal cards');
+            // Use setTimeout to ensure proper sequencing
+            setTimeout(async () => {
+                // First advance the phase
+                const advanceResult = await advanceAllInPhase();
+                // Then request the cards after a short delay
+                if (advanceResult) {
+                    setTimeout(async () => {
+                        await requestNextPhaseCards();
+                    }, 500);
+                }
+            }, animation.delay || 2000);
             break;
             
         case 'proceed_to_showdown':
             // All cards dealt, proceed to showdown
             console.log('Proceeding to showdown');
+            // Advance to showdown phase
             await advanceAllInPhase();
             break;
     }
@@ -783,6 +1322,21 @@ async function animateBlindPost(animation) {
 async function animateDealCard(animation) {
     const player = gameState.players.find(p => p.id === animation.player_id);
     
+    // Debug logging
+    console.log(`Dealing card ${animation.card_index} to ${animation.player_id}`, {
+        is_hero: animation.is_hero,
+        has_card_data: !!animation.card,
+        card: animation.is_hero ? animation.card : 'hidden',
+        gameState_exists: !!gameState,
+        player_hole_cards: player?.hole_cards || 'no player data'
+    });
+    
+    // Extra safety: wait a bit if DOM might not be ready
+    if (document.readyState !== 'complete') {
+        console.log('DOM not ready, waiting 100ms...');
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    
     // Don't deal to busted players
     if (!player || player.stack === 0) {
         console.log(`Skipping card deal for busted/missing player ${animation.player_id}`);
@@ -790,6 +1344,15 @@ async function animateDealCard(animation) {
     }
     
     const cardsContainer = document.getElementById(`cards_${animation.player_id}`);
+    
+    // Check if container exists
+    if (!cardsContainer) {
+        console.error(`Card container not found for player ${animation.player_id}! Looking for: cards_${animation.player_id}`);
+        // List all card containers for debugging
+        const allContainers = document.querySelectorAll('[id^="cards_"]');
+        console.log('Available card containers:', Array.from(allContainers).map(c => c.id));
+        return;
+    }
     
     // Safety check: ensure we don't have more than 2 cards
     const existingCards = cardsContainer.querySelectorAll('.hole-card');
@@ -813,16 +1376,36 @@ async function animateDealCard(animation) {
         playSound('cardFlip', Math.random());
     }, dealDelay);
     
-    if (animation.is_hero && player) {
+    if (animation.is_hero) {
         // Show hero cards after deal animation completes
         setTimeout(() => {
-            const cardData = player.hole_cards[animation.card_index];
+            // First try to use card data from animation
+            const cardData = animation.card;
             if (cardData) {
+                console.log(`Flipping hero card ${animation.card_index}: ${cardData}`);
                 // Simple reveal without complex animations
                 card.classList.remove('face-down');
                 card.innerHTML = formatCard(cardData);
                 if (cardData.includes('♥') || cardData.includes('♦')) {
                     card.classList.add('red');
+                }
+            } else {
+                // Fallback: try to get from gameState if available
+                console.warn(`No card data in animation for hero card ${animation.card_index}, checking gameState`);
+                const currentPlayer = gameState?.players?.find(p => p.id === animation.player_id);
+                if (currentPlayer && currentPlayer.hole_cards && currentPlayer.hole_cards[animation.card_index]) {
+                    const fallbackCard = currentPlayer.hole_cards[animation.card_index];
+                    console.log(`Using fallback card from gameState: ${fallbackCard}`);
+                    card.classList.remove('face-down');
+                    card.innerHTML = formatCard(fallbackCard);
+                    if (fallbackCard.includes('♥') || fallbackCard.includes('♦')) {
+                        card.classList.add('red');
+                    }
+                } else {
+                    console.error(`No card data available for hero card ${animation.card_index}`);
+                    // Last resort: mark the card element for later update
+                    card.setAttribute('data-needs-flip', 'true');
+                    card.setAttribute('data-card-index', animation.card_index);
                 }
             }
         }, dealDelay + 600);
@@ -1367,6 +1950,12 @@ function updateUI() {
     console.log('Game phase:', gameState?.phase);
     console.log('Action on:', gameState?.action_on);
     console.log('Players:', gameState?.players);
+    console.log('Awaiting card deal:', gameState?.awaiting_card_deal);
+    console.log('All players all-in:', gameState?.all_players_all_in);
+    console.log('Board cards:', gameState?.board_cards?.length || 0);
+    
+    // First update UI with card fixes
+    updateUIWithCardFixes();
     
     // Update game info bar
     const potAmount = document.getElementById('potAmount');
@@ -1410,6 +1999,14 @@ function updateUI() {
         
         // Update hand strength indicator
         updateHandStrength();
+        
+        // Check for stuck all-in state
+        checkStuckAllInState();
+        
+        // Ensure hero's hole cards are visible after a delay to allow animations to complete
+        setTimeout(() => {
+            ensureHeroCardsVisible();
+        }, 1000);
         
         // Check if it's AI's turn and trigger action
         if (gameState.action_on >= 0 && gameState.action_on < gameState.players.length) {
@@ -1486,6 +2083,15 @@ function updateUI() {
 function updateBettingControls() {
     const controls = document.getElementById('bettingControls');
     const hero = gameState.players.find(p => !p.is_ai);
+    
+    console.log('updateBettingControls called:', {
+        hero_exists: !!hero,
+        hero_position: hero?.position,
+        action_on: gameState.action_on,
+        is_hero_turn: hero && gameState.action_on === hero.position,
+        hero_folded: hero?.has_folded,
+        phase: gameState.phase
+    });
     
     // Hide controls if game is over, not hero's turn, or hero has folded
     if (!hero || gameState.action_on !== hero.position || hero.has_folded || 
@@ -1585,6 +2191,137 @@ document.getElementById('betSlider')?.addEventListener('input', (e) => {
     document.getElementById('betAmount').textContent = e.target.value;
     updateRaiseButtonState();
 });
+
+// Check for stuck all-in state
+function checkStuckAllInState() {
+    if (!gameState) return;
+    
+    // Check if we're stuck: all players all-in, awaiting card deal
+    if (gameState.all_players_all_in && gameState.awaiting_card_deal && !isRequestingCards) {
+        console.warn('Detected stuck all-in state - triggering card deal');
+        
+        // Add a visual indicator that we're fixing the stuck state
+        const infoBar = document.querySelector('.game-info-bar');
+        if (infoBar) {
+            const fixMessage = document.createElement('div');
+            fixMessage.style.cssText = 'position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #f39c12; color: white; padding: 10px 20px; border-radius: 5px; z-index: 1000;';
+            fixMessage.textContent = 'Dealing next cards...';
+            infoBar.appendChild(fixMessage);
+            
+            setTimeout(() => fixMessage.remove(), 2000);
+        }
+        
+        // Request the next cards
+        setTimeout(async () => {
+            await requestNextPhaseCards();
+        }, 500);
+    }
+}
+
+// Ensure hero's hole cards are visible
+function ensureHeroCardsVisible() {
+    if (!gameState) return;
+    
+    const hero = gameState.players.find(p => !p.is_ai);
+    if (!hero) {
+        console.warn('No hero player found');
+        return;
+    }
+    
+    console.log('ensureHeroCardsVisible - hero:', hero.id, 'hole_cards:', hero.hole_cards);
+    
+    if (!hero.hole_cards || hero.hole_cards.length !== 2) {
+        console.warn('Hero has invalid hole cards:', hero.hole_cards);
+        return;
+    }
+    
+    // Don't show cards during showdown phase (they'll be revealed by animations)
+    if (gameState.phase === 'SHOWDOWN' || gameState.phase === 'GAME_OVER') return;
+    
+    const cardsContainer = document.getElementById('cards_hero');
+    if (!cardsContainer) {
+        console.error('No cards container found for hero! Creating seat structure...');
+        // If the seat doesn't exist, we need to call setupTable
+        if (document.getElementById('playerSeats') && !document.getElementById('seat_hero')) {
+            setupTable();
+            // Try again after setup
+            const newContainer = document.getElementById('cards_hero');
+            if (!newContainer) {
+                console.error('Failed to create cards container for hero');
+                return;
+            }
+        } else {
+            return;
+        }
+    }
+    
+    const cardElements = cardsContainer.querySelectorAll('.hole-card');
+    
+    // Always recreate cards if we have hole cards but no elements
+    if (cardElements.length === 0 && hero.hole_cards.length === 2) {
+        console.log('No card elements found, creating them now');
+        hero.hole_cards.forEach((cardData, index) => {
+            const card = document.createElement('div');
+            card.className = 'hole-card dealing';
+            card.innerHTML = formatCard(cardData);
+            if (cardData.includes('♥') || cardData.includes('♦')) {
+                card.classList.add('red');
+            }
+            cardsContainer.appendChild(card);
+        });
+        console.log('Created hero card display');
+        return;
+    }
+    
+    // If we have the correct number of cards, check if they're visible
+    if (cardElements.length === 2) {
+        let needsUpdate = false;
+        
+        cardElements.forEach((card, index) => {
+            // Check if card is face-down or empty
+            if (card.classList.contains('face-down') || !card.innerHTML.trim()) {
+                needsUpdate = true;
+                console.warn(`Hero card ${index} is not visible, fixing...`);
+                
+                // Remove face-down class
+                card.classList.remove('face-down');
+                
+                // Set card content
+                const cardData = hero.hole_cards[index];
+                if (cardData) {
+                    card.innerHTML = formatCard(cardData);
+                    if (cardData.includes('♥') || cardData.includes('♦')) {
+                        card.classList.add('red');
+                    } else {
+                        card.classList.remove('red');
+                    }
+                }
+            }
+        });
+        
+        if (needsUpdate) {
+            console.log('Fixed hero card visibility');
+        }
+    } else if (hero.hole_cards.length === 2) {
+        // Wrong number of card elements - recreate them
+        console.error(`Hero has ${hero.hole_cards.length} cards but found ${cardElements.length} card elements. Recreating...`);
+        
+        // Clear and recreate
+        cardsContainer.innerHTML = '';
+        
+        hero.hole_cards.forEach((cardData, index) => {
+            const card = document.createElement('div');
+            card.className = 'hole-card';
+            card.innerHTML = formatCard(cardData);
+            if (cardData.includes('♥') || cardData.includes('♦')) {
+                card.classList.add('red');
+            }
+            cardsContainer.appendChild(card);
+        });
+        
+        console.log('Recreated hero card display');
+    }
+}
 
 
 // Update player bet displays
@@ -1821,14 +2558,63 @@ let isProcessingAction = false;
 // Track if we're already starting a new hand to prevent duplicates
 let isStartingNewHand = false;
 
-// Player action handler
-async function playerAction(action) {
-    // Prevent multiple simultaneous actions
-    if (isProcessingAction) {
-        console.log('Already processing an action, ignoring click');
-        return;
+// Action Request Manager for preventing duplicate requests
+class ActionRequestManager {
+    constructor() {
+        this.pendingRequest = null;
+        this.requestInFlight = false;
+        this.lastRequestTime = 0;
+        this.minRequestInterval = 500; // Minimum 500ms between requests
     }
     
+    generateRequestId() {
+        return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+    
+    canMakeRequest() {
+        const now = Date.now();
+        return !this.requestInFlight && (now - this.lastRequestTime) > this.minRequestInterval;
+    }
+    
+    async executeAction(action, amount, playerId, gameId) {
+        if (!this.canMakeRequest()) {
+            console.log('Request throttled or already in flight');
+            return null;
+        }
+        
+        this.requestInFlight = true;
+        this.lastRequestTime = Date.now();
+        const requestId = this.generateRequestId();
+        
+        console.log(`Executing action with request ID: ${requestId}`);
+        
+        try {
+            const response = await fetch(`/api/game/${gameId}/action`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    player_id: playerId,
+                    action: action,
+                    amount: amount,
+                    request_id: requestId
+                })
+            });
+            
+            const data = await response.json();
+            return data;
+        } finally {
+            this.requestInFlight = false;
+        }
+    }
+}
+
+// Create global action request manager
+const actionRequestManager = new ActionRequestManager();
+
+// Player action handler
+async function playerAction(action) {
     // Prevent actions during game over or showdown
     if (!gameState || gameState.phase === 'GAME_OVER' || gameState.phase === 'SHOWDOWN') {
         console.log('Cannot act during', gameState?.phase, 'phase');
@@ -1843,52 +2629,81 @@ async function playerAction(action) {
         amount = parseInt(document.getElementById('betSlider').value);
     }
     
+    // Check WebSocket connection
+    if (!gameWebSocket || !gameWebSocket.isConnected) {
+        console.log('WebSocket not connected, using HTTP fallback');
+        // Fallback to HTTP if WebSocket is not available
+        return playerActionHTTP(action, amount);
+    }
+    
+    // Use ActionRequestManager for throttling
+    if (!actionRequestManager.canMakeRequest()) {
+        console.log('Action request throttled');
+        return;
+    }
+    
     // Disable all betting buttons immediately
     disableBettingControls();
     isProcessingAction = true;
     
     try {
-        const response = await fetch(`/api/game/${gameState.game_id}/action`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                player_id: hero.id,
-                action: action,
-                amount: amount
-            })
-        });
+        // Send action via WebSocket
+        const requestId = actionRequestManager.generateRequestId();
+        gameWebSocket.sendAction(action, amount, requestId);
         
-        const data = await response.json();
+        // Update last request time for throttling
+        actionRequestManager.lastRequestTime = Date.now();
+        
+        // WebSocket will handle the response asynchronously
+        // The UI will be updated when we receive the game_update message
+        console.log(`Sent ${action} action via WebSocket`);
+        
+    } catch (error) {
+        console.error('Error sending action via WebSocket:', error);
+        // Fallback to HTTP
+        return playerActionHTTP(action, amount);
+    } finally {
+        // Reset processing flag after a short delay
+        setTimeout(() => {
+            isProcessingAction = false;
+        }, 500);
+    }
+}
+
+// HTTP fallback for player actions
+async function playerActionHTTP(action, amount) {
+    const hero = gameState.players.find(p => !p.is_ai);
+    if (!hero) return;
+    
+    try {
+        const data = await actionRequestManager.executeAction(action, amount, hero.id, gameState.game_id);
+        
+        if (!data) {
+            console.log('Action request was throttled or failed');
+            enableBettingControls();
+            return;
+        }
         
         if (data.success) {
             gameState = data.state;
-            queueAnimations(data.animations);
+            queueAnimations(data.animations, 'http_player_action');
+            updateUI();
             
             // If it's AI's turn, trigger AI action
             if (gameState.action_on >= 0) {
                 const nextPlayer = gameState.players[gameState.action_on];
                 if (nextPlayer.is_ai) {
-                    // Add longer delay for AI to prevent rapid actions
                     console.log('AI turn after player action, waiting before trigger');
                     setTimeout(() => triggerAIAction(), 2000);
                 }
             }
         } else {
             console.error('Action failed:', data.error);
-            // Re-enable controls on error
             enableBettingControls();
         }
     } catch (error) {
         console.error('Error processing action:', error);
-        // Re-enable controls on error
         enableBettingControls();
-    } finally {
-        // Reset processing flag after a short delay
-        setTimeout(() => {
-            isProcessingAction = false;
-        }, 500);
     }
 }
 
@@ -1970,7 +2785,7 @@ async function triggerAIAction() {
                 console.warn('WARNING: All 5 community cards dealt at once!');
             }
             
-            queueAnimations(data.animations);
+            queueAnimations(data.animations, 'ai_http');
             
             // Continue with next AI if needed, but with proper delay
             if (gameState.action_on >= 0 && gameState.action_on < gameState.players.length) {
@@ -2256,12 +3071,23 @@ async function showHandHistory() {
     }
 }
 
+// Track if we're already requesting cards to prevent duplicates
+let isRequestingCards = false;
+
 // Request cards for the current phase
 async function requestNextPhaseCards() {
     if (!gameState || !gameState.game_id) {
         console.error('No game state available');
         return;
     }
+    
+    // Prevent duplicate requests
+    if (isRequestingCards) {
+        console.warn('Already requesting cards, skipping duplicate request');
+        return;
+    }
+    
+    isRequestingCards = true;
     
     try {
         console.log('Requesting cards for current phase');
@@ -2274,13 +3100,18 @@ async function requestNextPhaseCards() {
         if (data.success) {
             gameState = data.state;
             if (data.animations) {
-                queueAnimations(data.animations);
+                queueAnimations(data.animations, 'http_deal_cards');
             }
         } else {
             console.error('Failed to deal cards:', data.error);
         }
     } catch (error) {
         console.error('Error requesting cards:', error);
+    } finally {
+        // Reset flag after a delay to allow for animations
+        setTimeout(() => {
+            isRequestingCards = false;
+        }, 1000);
     }
 }
 
@@ -2288,7 +3119,7 @@ async function requestNextPhaseCards() {
 async function advanceAllInPhase() {
     if (!gameState || !gameState.game_id) {
         console.error('No game state available');
-        return;
+        return false;
     }
     
     try {
@@ -2302,13 +3133,16 @@ async function advanceAllInPhase() {
         if (data.success) {
             gameState = data.state;
             if (data.animations) {
-                queueAnimations(data.animations);
+                queueAnimations(data.animations, 'http_advance_phase');
             }
+            return true;
         } else {
             console.error('Failed to advance phase:', data.error);
+            return false;
         }
     } catch (error) {
         console.error('Error advancing all-in phase:', error);
+        return false;
     }
 }
 

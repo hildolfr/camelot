@@ -228,3 +228,44 @@ class HealthResponse(BaseModel):
     version: str = Field(..., description="API version")
     poker_knight_available: bool = Field(..., description="Whether poker_knightNG module is available")
     gpu_status: Optional[Dict[str, Any]] = Field(None, description="GPU server status and statistics")
+
+
+class RequestTracking(BaseModel):
+    """Model for tracking action requests"""
+    request_id: str = Field(..., description="Unique request identifier")
+    game_id: str = Field(..., description="Game ID")
+    player_id: str = Field(..., description="Player ID")
+    action: str = Field(..., description="Action type")
+    amount: Optional[int] = Field(None, description="Bet amount if applicable")
+    timestamp: float = Field(..., description="Unix timestamp")
+    processed: bool = Field(..., description="Whether request was processed")
+    duplicate: bool = Field(False, description="Whether this was a duplicate request")
+    result: Optional[Dict[str, Any]] = Field(None, description="Result of processing")
+
+
+class ChipMovement(BaseModel):
+    """Model for tracking chip movements"""
+    timestamp: float = Field(..., description="Unix timestamp")
+    hand_number: int = Field(..., description="Hand number")
+    player_id: str = Field(..., description="Player ID")
+    player_name: str = Field(..., description="Player name")
+    amount: int = Field(..., description="Amount moved (negative for bets, positive for wins)")
+    reason: str = Field(..., description="Reason for movement")
+    stack_before: int = Field(..., description="Stack before movement")
+    stack_after: int = Field(..., description="Stack after movement")
+    state_version: int = Field(..., description="Game state version")
+
+
+class StateSnapshot(BaseModel):
+    """Model for game state snapshots"""
+    state_version: int = Field(..., description="State version number")
+    timestamp: float = Field(..., description="Unix timestamp")
+    phase: str = Field(..., description="Game phase")
+    hand_number: int = Field(..., description="Current hand number")
+    action_on: int = Field(..., description="Position of player to act")
+    current_bet: int = Field(..., description="Current bet amount")
+    board_cards: List[str] = Field(..., description="Community cards")
+    player_states: List[Dict[str, Any]] = Field(..., description="Player state snapshots")
+    pots: List[Dict[str, Any]] = Field(..., description="Pot information")
+    chip_movements_count: int = Field(..., description="Number of chip movements recorded")
+    validation_status: Dict[str, Any] = Field(..., description="State validation results")

@@ -417,7 +417,7 @@ class AIPlayer:
         """Get advanced analysis from poker_knightNG."""
         try:
             # Import here to avoid circular imports
-            from ..core.cached_poker_calculator import get_cached_calculator
+            from ..core.cache_init import get_cached_calculator
             calculator = get_cached_calculator()
             
             # Determine street
