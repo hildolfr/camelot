@@ -326,6 +326,11 @@ class PokerGame:
         active_players = [p for p in self.state.players if p.stack > 0]
         self.state.pots = []
         
+        # Reset turn-based card dealing flags
+        self.state.awaiting_card_deal = False
+        self.state.all_players_all_in = False
+        self.state.cards_dealt_for_phase = {}
+        
         # Set phase to PRE_FLOP early to ensure blinds are logged correctly
         self.state.phase = GamePhase.PRE_FLOP
         
@@ -1046,26 +1051,34 @@ class PokerGame:
         
         # If all players are all-in and we just dealt cards, check if we should continue
         if self.state.all_players_all_in:
+            logger.info(f"All players all-in after dealing {self.state.phase.name} cards")
             # Check if we need to advance to next phase
             # Add longer delays for dramatic effect when all-in
             if self.state.phase == GamePhase.FLOP:
+                logger.info("Adding request_next_cards animation for TURN")
                 animations.append({
                     "type": "request_next_cards",
                     "phase": "TURN",
                     "delay": 3500  # Increased from 2000ms
                 })
             elif self.state.phase == GamePhase.TURN:
+                logger.info("Adding request_next_cards animation for RIVER")
                 animations.append({
                     "type": "request_next_cards", 
                     "phase": "RIVER",
                     "delay": 3500  # Increased from 2000ms
                 })
             elif self.state.phase == GamePhase.RIVER:
+                logger.info("Adding proceed_to_showdown animation")
                 # Time for showdown
                 animations.append({
                     "type": "proceed_to_showdown",
                     "delay": 4000  # Increased from 2000ms for final drama
                 })
+        
+        logger.info(f"Returning {len(animations)} animations from deal_next_phase_cards")
+        for anim in animations:
+            logger.info(f"  Animation: {anim}")
         
         return {
             "success": True,
