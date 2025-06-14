@@ -1254,16 +1254,23 @@ async function playAnimation(animation) {
         case 'request_next_cards':
             // In all-in situation, need to advance phase then deal cards
             console.log('All-in: Need to advance to', animation.phase, 'and deal cards');
+            console.log('Current game state:', gameState);
+            
             // Wait for the specified delay before advancing
             await sleep(animation.delay || 2000);
             
             // First advance the phase
+            console.log('Calling advanceAllInPhase...');
             const advanceResult = await advanceAllInPhase();
+            console.log('advanceAllInPhase result:', advanceResult);
             
             // Then request the cards after a short delay
             if (advanceResult) {
                 await sleep(500);
+                console.log('Requesting next phase cards...');
                 await requestNextPhaseCards();
+            } else {
+                console.error('Failed to advance all-in phase - game may be stuck');
             }
             break;
             
@@ -3083,6 +3090,7 @@ async function showHandHistory() {
 
 // Track if we're already requesting cards to prevent duplicates
 let isRequestingCards = false;
+let isAdvancingPhase = false;
 
 // Request cards for the current phase
 async function requestNextPhaseCards() {
@@ -3134,27 +3142,42 @@ async function advanceAllInPhase() {
         return false;
     }
     
+    // Prevent duplicate phase advances
+    if (isAdvancingPhase) {
+        console.warn('Already advancing phase, skipping duplicate request');
+        return false;
+    }
+    
+    isAdvancingPhase = true;
+    
     try {
-        console.log('Advancing all-in phase');
+        console.log('Advancing all-in phase from', gameState.phase);
         const response = await fetch(`/api/game/${gameState.game_id}/advance-all-in-phase`, {
             method: 'POST'
         });
         
         const data = await response.json();
         
-        if (data.success) {
+        if (response.ok && data.success) {
             gameState = data.state;
             if (data.animations) {
                 queueAnimations(data.animations, 'http_advance_phase');
             }
             return true;
         } else {
-            console.error('Failed to advance phase:', data.error);
+            // Handle error from either data.error or data.detail (FastAPI format)
+            const errorMsg = data.error || data.detail || 'Unknown error';
+            console.error('Failed to advance phase:', errorMsg);
             return false;
         }
     } catch (error) {
         console.error('Error advancing all-in phase:', error);
         return false;
+    } finally {
+        // Reset flag after a delay to allow for animations
+        setTimeout(() => {
+            isAdvancingPhase = false;
+        }, 1000);
     }
 }
 
