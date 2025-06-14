@@ -960,6 +960,8 @@ class PokerGame:
     def deal_next_phase_cards(self) -> Dict[str, Any]:
         """Deal cards for the next phase when requested by frontend"""
         logger.info(f"\n{'='*50}\nDEALING CARDS FOR PHASE: {self.state.phase.name}\n{'='*50}")
+        logger.info(f"Current state: awaiting_card_deal={self.state.awaiting_card_deal}, all_players_all_in={self.state.all_players_all_in}")
+        logger.info(f"Board cards: {self.state.board_cards} (count: {len(self.state.board_cards)})")
         
         animations = []
         
