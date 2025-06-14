@@ -183,6 +183,8 @@ class PokerGame:
         self._last_phase_change = None  # Track rapid phase transitions
         self._processing_action = False  # Prevent concurrent action processing
         self._action_lock = asyncio.Lock()  # Thread-safe action processing
+        self._processed_actions = set()  # Track processed actions to prevent duplicates
+        self._action_counter = 0  # Unique action identifier
         
         logger.info(f"\n{'='*60}\nINITIALIZING NEW GAME: {self.game_id}")
         logger.info(f"Config: {json.dumps(game_config, indent=2)}")
