@@ -181,6 +181,8 @@ class PokerGame:
         self.state = self._initialize_game_state()
         self.hand_history = []  # List of completed hands with all actions and results
         self._last_phase_change = None  # Track rapid phase transitions
+        self._processing_action = False  # Prevent concurrent action processing
+        self._action_lock = asyncio.Lock()  # Thread-safe action processing
         
         logger.info(f"\n{'='*60}\nINITIALIZING NEW GAME: {self.game_id}")
         logger.info(f"Config: {json.dumps(game_config, indent=2)}")
@@ -414,6 +416,19 @@ class PokerGame:
         """Process a player action with animations"""
         logger.info(f"\n{'='*50}\nACTION: {player_id} -> {action.value} (${amount})\n{'='*50}")
         
+        # Prevent concurrent action processing
+        if self._processing_action:
+            logger.warning(f"Action already being processed, rejecting {player_id}'s {action.value}")
+            return {"success": False, "error": "Another action is being processed"}
+        
+        self._processing_action = True
+        try:
+            return self._do_process_action(player_id, action, amount)
+        finally:
+            self._processing_action = False
+    
+    def _do_process_action(self, player_id: str, action: PlayerAction, amount: int = 0) -> Dict[str, Any]:
+        """Internal action processing"""
         # CRITICAL: Reject actions if game is over
         if self.state.phase == GamePhase.GAME_OVER:
             logger.error(f"ERROR: Attempted action during GAME_OVER phase!")
